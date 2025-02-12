@@ -11,13 +11,15 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-        return res.status(401).json({ error: 'Authorization header missing.' });
+        res.status(401).json({ error: 'Authorization header missing.' });
+        return;
     }
 
     const token = authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ error: 'Token is missing' });
+        res.status(401).json({ error: 'Token is missing' });
+        return;
     }
 
     try {
@@ -26,19 +28,22 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         const user = await prisma.user.findUnique({ where: { id: decoded.id } });
 
         if (!user) {
-            return res.status(404).json({ error: 'Usuário não encontrado.' });
+            res.status(404).json({ error: 'Usuário não encontrado.' });
+            return;
         }
 
         req.user = { id: user.id, userRole: user.role };
-        return next();
+        next();
     } catch (error) {
-        return res.status(401).json({ error: 'Invalid token.' });
+        res.status(401).json({ error: 'Invalid token.' });
+        return;
     }
 }
 
 export const IsAdminUser = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || req.user.userRole !== UserRole.ADMIN) {
-        return res.status(403).json({ error: 'Acesso negado. Esta rota é restrita apenas para administradores.' });
+        res.status(403).json({ error: 'Acesso negado. Esta rota é restrita apenas para administradores.' });
+        return;
     }
-    return next();
+    next();
 }

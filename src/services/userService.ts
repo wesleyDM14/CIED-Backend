@@ -23,6 +23,11 @@ class UserService {
         return newUser;
     }
 
+    async getUsers(){
+        const users = await prisma.user.findMany();
+        return users;
+    }
+
     async getUserByEmail(email: string) {
         return await prisma.user.findUnique({ where: { email } });
     }
