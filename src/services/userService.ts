@@ -2,6 +2,9 @@ import prisma from "../database";
 import bcrypt from 'bcryptjs';
 import { generateAccessToken } from "../functions/generateAccessToken";
 
+const MAX_ATTEMPTS = 5;
+const LOCK_TIME = 30 * 60 * 1000;
+
 class UserService {
 
     async authenticateUser(email: string, password: string) {
@@ -11,9 +14,33 @@ class UserService {
             throw new Error('Email não encontrado no banco de dados.');
         }
 
+        if (userAuthenticate.lockUntil && userAuthenticate.lockUntil > new Date()) {
+            const remainingTime = Math.ceil((userAuthenticate.lockUntil.getTime() - Date.now()) / 60000);
+            throw new Error(`Conta bloqueada. Tente novamente em ${remainingTime} minutos.`);
+        }
+
         const passwordMatch = await bcrypt.compare(password, userAuthenticate.password);
 
         if (!passwordMatch) {
+            await prisma.user.update({
+                where: { id: userAuthenticate.id },
+                data: {
+                    failedAttemps: userAuthenticate.failedAttemps + 1,
+                }
+            });
+
+            if (userAuthenticate.failedAttemps + 1 >= MAX_ATTEMPTS) {
+                await prisma.user.update({
+                    where: { id: userAuthenticate.id },
+                    data: {
+                        lockUntil: new Date(Date.now() + LOCK_TIME),
+                        failedAttemps: 0,
+                    },
+                });
+
+                throw new Error(`Conta bloqueada por ${LOCK_TIME / 60000} minutos devidos a muitas tentativas falhas.`);
+            }
+
             throw new Error('Senha incorreta.');
         }
 
