@@ -1,7 +1,25 @@
 import prisma from "../database";
 import bcrypt from 'bcryptjs';
+import { generateAccessToken } from "../functions/generateAccessToken";
 
 class UserService {
+
+    async authenticateUser(email: string, password: string) {
+        const userAuthenticate = await prisma.user.findUnique({ where: { email } });
+
+        if (!userAuthenticate) {
+            throw new Error('Email não encontrado no banco de dados.');
+        }
+
+        const passwordMatch = await bcrypt.compare(password, userAuthenticate.password);
+
+        if (!passwordMatch) {
+            throw new Error('Senha incorreta.');
+        }
+
+        const accessToken = generateAccessToken(userAuthenticate.id);
+        return { accessToken, userRole: userAuthenticate.role };
+    }
 
     async createUser(email: string, password: string) {
         const existingUser = await prisma.user.findUnique({ where: { email: email } });
@@ -23,7 +41,7 @@ class UserService {
         return newUser;
     }
 
-    async getUsers(){
+    async getUsers() {
         const users = await prisma.user.findMany();
         return users;
     }

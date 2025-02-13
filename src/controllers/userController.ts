@@ -6,9 +6,26 @@ const userService = new UserService();
 
 class UserController {
 
+    async authenticateUser(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { email, password } = req.body;
+
+            if (!email || !password) {
+                res.status(400).json({ error: 'Login e senha são obrigatórios.' });
+                return;
+            }
+
+            const accessToken = userService.authenticateUser(email, password);
+
+            res.status(200).json({ accessToken });
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async createUser(req: Request, res: Response, next: NextFunction) {
         try {
-
             if (req.user.userRole !== UserRole.ADMIN) {
                 res.status(403).json({ error: 'Usuário sem permissão para criar novos usuários' });
                 return;
