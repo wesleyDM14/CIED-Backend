@@ -8,6 +8,6 @@ const routes = Router();
 
 routes.use('/api/user', userRoutes);
 routes.use('/api/tickets', ticketRoutes);
-routes.use('/api/client', clientRoutes);
+routes.use('/api/clients', clientRoutes);
 
 export default routes;
