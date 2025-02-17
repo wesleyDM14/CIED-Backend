@@ -24,7 +24,7 @@ class ClientController {
 
     async getClients(req: Request, res: Response, next: NextFunction) {
         try {
-            const clients = clientService.getClients();
+            const clients = await clientService.getClients();
             res.status(200).json(clients);
             return;
         } catch (error) {

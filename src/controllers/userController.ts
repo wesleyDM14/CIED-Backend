@@ -15,9 +15,9 @@ class UserController {
                 return;
             }
 
-            const accessToken = userService.authenticateUser(email, password);
+            const { accessToken, userRole } = await userService.authenticateUser(email, password);
 
-            res.status(200).json({ accessToken });
+            res.status(200).json({ accessToken, userRole });
             return;
         } catch (error) {
             next(error);
