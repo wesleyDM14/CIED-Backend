@@ -69,7 +69,7 @@ class UserService {
     }
 
     async getUsers() {
-        const users = await prisma.user.findMany();
+        const users = await prisma.user.findMany({ where: { role: "OPERATOR" } });
         return users;
     }
 

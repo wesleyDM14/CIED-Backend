@@ -52,7 +52,7 @@ class UserController {
                 return;
             }
 
-            const users = userService.getUsers();
+            const users = await userService.getUsers();
 
             res.status(200).json(users);
             return;

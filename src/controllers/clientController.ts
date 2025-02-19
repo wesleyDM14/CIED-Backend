@@ -7,14 +7,14 @@ class ClientController {
 
     async createClient(req: Request, res: Response, next: NextFunction) {
         try {
-            const { name, email, phone } = req.body;
+            const { name, email, phone, address } = req.body;
 
             if (!name) {
                 res.status(400).json({ error: 'Nome é obrigatório.' });
                 return;
             }
 
-            const newClient = await clientService.createClient(name, email, phone);
+            const newClient = await clientService.createClient(name, email, phone, address);
             res.status(201).json(newClient);
             return;
         } catch (error) {
@@ -73,14 +73,14 @@ class ClientController {
                 return;
             }
 
-            const { name, email, phone } = req.body;
+            const { name, email, phone, address } = req.body;
 
             if (!name) {
                 res.status(400).json({ error: 'Nome é obrigatório.' });
                 return;
             }
 
-            await clientService.updatedClient(clientId, name, email, phone);
+            await clientService.updatedClient(clientId, name, email, phone, address);
             res.status(200).json({ message: 'Cliente atualizado com sucesso.' });
             return;
         } catch (error) {

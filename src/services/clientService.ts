@@ -2,7 +2,7 @@ import prisma from "../database";
 
 class ClientService {
 
-    async createClient(name: string, email?: string, phone?: string) {
+    async createClient(name: string, email?: string, phone?: string, address?: string) {
         const existingClient = await prisma.client.findUnique({ where: { email } });
 
         if (existingClient) {
@@ -13,7 +13,8 @@ class ClientService {
             data: {
                 name,
                 email,
-                phone
+                phone,
+                address
             }
         });
 
@@ -45,7 +46,7 @@ class ClientService {
         return client;
     }
 
-    async updatedClient(clientId: string, name: string, email?: string, phone?: string) {
+    async updatedClient(clientId: string, name: string, email?: string, phone?: string, address?: string) {
         const existingClient = await prisma.client.findUnique({ where: { id: clientId } });
 
         if (!existingClient) {
@@ -57,7 +58,8 @@ class ClientService {
             data: {
                 name,
                 phone,
-                email
+                email,
+                address
             }
         });
 
