@@ -78,6 +78,16 @@ class UserController {
         }
     }
 
+    async getProfile(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = await userService.getUserById(req.user.id);
+            res.status(200).json(user);
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async updateUser(req: Request, res: Response, next: NextFunction) {
         try {
             const { newPassword } = req.body;

@@ -77,6 +77,10 @@ class UserService {
         return await prisma.user.findUnique({ where: { email } });
     }
 
+    async getUserById(userId: string) {
+        return await prisma.user.findUnique({ where: { id: userId } });
+    }
+
     async updateUserPassword(userId: string, email: string, newPassword: string) {
         const existingUser = await prisma.user.findUnique({ where: { email } });
 
@@ -84,7 +88,14 @@ class UserService {
             throw new Error('Usuário não encontrado no banco de dados.');
         }
 
-        if (existingUser.id !== userId && existingUser.role !== 'ADMIN') {
+        const loggedUser = await prisma.user.findUnique({ where: { id: userId } });
+
+        if (!loggedUser) {
+            throw new Error('Usuário não encontrado no banco de dados.');
+        }
+
+
+        if (existingUser.id !== userId && loggedUser.role !== 'ADMIN') {
             throw new Error('Você não tem permissão para modificar esse usuário.');
         }
 
