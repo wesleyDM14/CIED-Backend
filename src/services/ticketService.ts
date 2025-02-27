@@ -163,6 +163,48 @@ class TicketService {
         await prisma.ticket.delete({ where: { id: ticketId } });
         return;
     }
+
+    async getDashboardSumary() {
+
+        const today = new Date();
+
+        const firstDayOfWeek = new Date(today);
+        firstDayOfWeek.setDate(today.getDate() - today.getDay() + 1);
+
+        const tickets = await prisma.ticket.findMany({
+            where: { createdAt: { gte: firstDayOfWeek } },
+            select: {
+                type: true,
+                createdAt: true,
+            },
+        });
+
+        const dailyCounts: Record<string, number> = {
+            "seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "sáb": 0, "dom": 0
+        };
+
+        let normalCount = 0;
+        let preferencialCount = 0;
+
+        tickets.forEach((ticket) => {
+            const day = new Date(ticket.createdAt).toLocaleString("pt-BR", { weekday: "short" }).replace(".", "");
+            
+            if (dailyCounts[day] !== undefined) {
+                dailyCounts[day]++;
+            }
+
+            if (ticket.type === "NORMAL") normalCount++;
+            if (ticket.type === "PREFERENCIAL") preferencialCount++;
+        });
+
+        return {
+            dailyData: Object.keys(dailyCounts).map(day => ({ day, atendimentos: dailyCounts[day] })),
+            attendanceBreakdown: [
+                { type: "Normal", count: normalCount },
+                { type: "Preferencial", count: preferencialCount }
+            ],
+        };
+    }
 }
 
 export default TicketService;

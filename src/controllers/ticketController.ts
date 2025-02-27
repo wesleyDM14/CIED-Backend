@@ -10,6 +10,12 @@ class TicketController {
     async createTicket(req: Request, res: Response, next: NextFunction) {
         try {
             const { type } = req.body;
+            const apiKey = req.headers["x-api-key"];
+
+            if (!apiKey || apiKey !== process.env.APP_SECRET_KEY) {
+                res.status(403).json({ error: "Acesso não autorizado." });
+                return;
+            }
 
             if (!type) {
                 res.status(400).json({ error: 'Tipo de ticket é obrigatório.' });
@@ -97,6 +103,16 @@ class TicketController {
 
             await ticketService.deleteTicket(ticketId);
             res.status(200).json({ message: 'Ticket deletado com sucesso.' });
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getDashboardSummary(req: Request, res: Response, next: NextFunction) {
+        try {
+            const summary = await ticketService.getDashboardSumary();
+            res.json(summary);
             return;
         } catch (error) {
             next(error);
