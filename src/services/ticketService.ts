@@ -1,5 +1,6 @@
 import { TicketStatus, TicketType } from "@prisma/client";
 import prisma from "../database";
+import { io } from "../server";
 
 class TicketService {
 
@@ -32,6 +33,8 @@ class TicketService {
             }
         });
 
+        io.emit("ticket:created", ticket);
+
         return ticket;
     }
 
@@ -42,12 +45,13 @@ class TicketService {
         const tickets = await prisma.ticket.findMany({
             where: {
                 type: ticketType,
-                status: "WAITING",
-                createdAt: {
-                    gte: todayStart
-                }
+                status: { in: ["WAITING", "CALLED"] },
+                createdAt: { gte: todayStart }
             },
-            orderBy: { createdAt: 'asc' }
+            orderBy: [
+                { status: 'asc' },
+                { createdAt: 'asc' }
+            ]
         });
 
         return tickets;
@@ -69,8 +73,12 @@ class TicketService {
     }
 
     async callNextTicket(serviceCounter: string) {
-        const preferentialTickets = await this.getWaitingTickets('PREFERENCIAL' as TicketType);
-        const normalTickets = await this.getWaitingTickets('NORMAL' as TicketType);
+        const preferentialTickets = (await this.getWaitingTickets('PREFERENCIAL' as TicketType))
+            .filter(ticket => ticket.status !== TicketStatus.CALLED);
+
+        const normalTickets = (await this.getWaitingTickets('NORMAL' as TicketType))
+            .filter(ticket => ticket.status !== TicketStatus.CALLED);
+
         const lastCalled = await this.getLastCalledTicket();
 
         let ticketToCall = null;
@@ -103,28 +111,38 @@ class TicketService {
             where: { id: ticketToCall.id },
             data: {
                 status: TicketStatus.CALLED,
-                stageOne: true,
                 serviceCounter: serviceCounter,
                 calledAt: new Date()
             }
         });
 
+        io.emit("ticket:called", {
+            number: updatedTicket.number,
+            serviceCounter: updatedTicket.serviceCounter
+        });
+
         return updatedTicket;
     }
 
-    async secondCall(ticketId: string, room: string) {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+    async callSpecificTicket(number: string, serviceCounter: string) {
+        const ticket = await prisma.ticket.findFirst({ where: { number } });
 
         if (!ticket) {
-            throw new Error('Ticket não encontrado.');
+            throw new Error('Ticket não encontrado no banco de dados.');
         }
 
         const updatedTicket = await prisma.ticket.update({
-            where: { id: ticketId },
+            where: { id: ticket.id },
             data: {
-                stageTwo: true,
-                room: room
+                status: TicketStatus.CALLED,
+                serviceCounter: serviceCounter,
+                calledAt: new Date()
             }
+        });
+
+        io.emit("ticket:called", {
+            number: updatedTicket.number,
+            serviceCounter: updatedTicket.serviceCounter
         });
 
         return updatedTicket;
@@ -164,38 +182,78 @@ class TicketService {
         return;
     }
 
+    async cancelExpiredTickets(ticketId: string) {
+        const existingTicket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+
+        if (!existingTicket) {
+            throw new Error('Ticket não encontrado no Banco de Dados');
+        }
+
+        await prisma.ticket.update({
+            where: { id: existingTicket.id },
+            data: {
+                status: 'CANCELED'
+            }
+        });
+
+        return;
+    }
+
     async getDashboardSumary() {
 
-        const today = new Date();
-
-        const firstDayOfWeek = new Date(today);
-        firstDayOfWeek.setDate(today.getDate() - today.getDay() + 1);
-
-        const tickets = await prisma.ticket.findMany({
-            where: { createdAt: { gte: firstDayOfWeek } },
+        const allTickets = await prisma.ticket.findMany({
             select: {
                 type: true,
+                status: true,
                 createdAt: true,
             },
         });
+
+        const today = new Date();
+        const firstDayOfWeek = new Date(today);
+        firstDayOfWeek.setDate(today.getDate() - today.getDay() + 1);
+
+        const weeklyTickets = allTickets.filter(ticket =>
+            new Date(ticket.createdAt) >= firstDayOfWeek
+        );
 
         const dailyCounts: Record<string, number> = {
             "seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "sáb": 0, "dom": 0
         };
 
+        weeklyTickets.forEach((ticket) => {
+            const day = new Date(ticket.createdAt).toLocaleString("pt-BR", { weekday: "short" }).replace(".", "");
+            if (dailyCounts[day] !== undefined) dailyCounts[day]++;
+        });
+
+        // Cálculo para pizza e média (GERAL)
         let normalCount = 0;
         let preferencialCount = 0;
 
-        tickets.forEach((ticket) => {
-            const day = new Date(ticket.createdAt).toLocaleString("pt-BR", { weekday: "short" }).replace(".", "");
-            
-            if (dailyCounts[day] !== undefined) {
-                dailyCounts[day]++;
-            }
-
+        allTickets.forEach((ticket) => {
             if (ticket.type === "NORMAL") normalCount++;
             if (ticket.type === "PREFERENCIAL") preferencialCount++;
         });
+
+        // Cálculo da média geral
+        const totalDays = allTickets.length > 0
+            ? Math.ceil(
+                (new Date().getTime() - Math.min(...allTickets.map(t => t.createdAt.getTime()))) /
+                (1000 * 3600 * 24)
+            )
+            : 0;
+
+        const average = totalDays > 0 ?
+            (allTickets.length / totalDays).toFixed(1)
+            : 0;
+
+        const statusCounts = {
+            total: allTickets.length,
+            finished: allTickets.filter(t => t.status === 'FINISHED').length,
+            canceled: allTickets.filter(t => t.status === 'CANCELED').length,
+            waiting: allTickets.filter(t => t.status === 'WAITING').length,
+            called: allTickets.filter(t => t.status === 'CALLED').length
+        };
 
         return {
             dailyData: Object.keys(dailyCounts).map(day => ({ day, atendimentos: dailyCounts[day] })),
@@ -203,6 +261,13 @@ class TicketService {
                 { type: "Normal", count: normalCount },
                 { type: "Preferencial", count: preferencialCount }
             ],
+            averageAttendances: average,
+            statusDistribution: [
+                { status: 'Finalizadas', count: statusCounts.finished },
+                { status: 'Canceladas', count: statusCounts.canceled },
+                { status: 'Pendentes', count: statusCounts.waiting + statusCounts.called }
+            ],
+            totalTickets: statusCounts.total
         };
     }
 }

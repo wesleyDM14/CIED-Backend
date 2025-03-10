@@ -53,16 +53,16 @@ class TicketController {
         }
     }
 
-    async secondCall(req: Request, res: Response, next: NextFunction) {
+    async callSpecificTicket(req: Request, res: Response, next: NextFunction) {
         try {
-            const { ticketId, room } = req.body;
+            const { number, serviceCounter } = req.body;
 
-            if (!ticketId || !room) {
-                res.status(400).json({ error: 'Ticket ID and room are required' });
+            if (!serviceCounter || !number) {
+                res.status(400).json({ error: 'Service  or number is required' });
                 return;
             }
 
-            const ticket = await ticketService.secondCall(ticketId, room);
+            const ticket = await ticketService.callSpecificTicket(number, serviceCounter);
             res.status(200).json(ticket);
             return;
         } catch (error) {

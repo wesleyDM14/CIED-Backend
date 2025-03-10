@@ -23,11 +23,19 @@ enum TicketStatus {
   WAITING
   CALLED
   FINISHED
+  CANCELED
 }
 
 enum UserRole {
   ADMIN
   OPERATOR
+}
+
+enum MetodoPagamento {
+  DINHEIRO
+  CARTAO
+  CONVENIO
+  SUS
 }
 
 model User {
@@ -42,14 +50,14 @@ model User {
 }
 
 model Client {
-  id        String   @id @default(uuid())
-  name      String
-  email     String?  @unique
-  phone     String?
-  address   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tickets   Ticket[]
+  id           String         @id @default(uuid())
+  name         String
+  email        String?        @unique
+  phone        String?
+  address      String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  procedimento Procedimento[]
 }
 
 model Ticket {
@@ -57,15 +65,23 @@ model Ticket {
   number         String
   type           TicketType
   status         TicketStatus @default(WAITING)
-  stageOne       Boolean      @default(false)
-  stageTwo       Boolean      @default(false)
   serviceCounter String?
-  room           String?
-
-  Client   Client? @relation(fields: [clientId], references: [id])
-  clientId String?
 
   createdAt DateTime  @default(now())
   calledAt  DateTime?
   updatedAt DateTime  @updatedAt
+}
+
+model Procedimento {
+  id              String           @id @default(uuid())
+  nome            String
+  description     String?
+  preco           Float?
+  metodoPagamento MetodoPagamento?
+
+  clientId String?
+  cliente  Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
