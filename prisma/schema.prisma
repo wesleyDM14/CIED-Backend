@@ -17,12 +17,12 @@ datasource db {
 enum TicketType {
   NORMAL
   PREFERENCIAL
+  AGENDAMENTO
 }
 
 enum TicketStatus {
   WAITING
   CALLED
-  FINISHED
   CANCELED
 }
 
@@ -33,6 +33,7 @@ enum UserRole {
 
 enum MetodoPagamento {
   DINHEIRO
+  PIX
   CARTAO
   CONVENIO
   SUS
@@ -50,37 +51,94 @@ model User {
 }
 
 model Client {
-  id           String         @id @default(uuid())
-  name         String
-  email        String?        @unique
-  phone        String?
-  address      String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  procedimento Procedimento[]
+  id             String    @id @default(uuid())
+  name           String
+  email          String?   @unique
+  phone          String?
+  cpf            String   @unique
+  rg             String?   @unique
+  dataNascimento DateTime?
+
+  logradouro String?
+  bairro     String?
+  cidade     String?
+  uf         String?
+  num        Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  atendimentos Atendimento[]
 }
 
 model Ticket {
   id             String       @id @default(uuid())
-  number         String
+  code           String
   type           TicketType
   status         TicketStatus @default(WAITING)
   serviceCounter String?
+  scheduleAt     DateTime?
+
+  procedimentoId String
+  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
 
   createdAt DateTime  @default(now())
   calledAt  DateTime?
   updatedAt DateTime  @updatedAt
+
+  atendimento Atendimento?
 }
 
 model Procedimento {
+  id               String @id @default(uuid())
+  nomeProfissional String
+  description      String
+
+  schedules    ScheduleProcedimento[]
+  tickets      Ticket[]
+  atendimentos Atendimento[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Atendimento {
   id              String           @id @default(uuid())
-  nome            String
-  description     String?
   preco           Float?
   metodoPagamento MetodoPagamento?
+  observacoes     String?
+
+  ticketId String @unique
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
 
   clientId String?
-  cliente  Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  procedimentoId String
+  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WeeklySchedule {
+  id        String   @id @default(uuid())
+  weekStart DateTime @unique
+
+  procedimentos ScheduleProcedimento[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ScheduleProcedimento {
+  id String @id @default(uuid())
+
+  weeklyScheduleId String
+  weeklySchedule   WeeklySchedule @relation(fields: [weeklyScheduleId], references: [id])
+
+  procedimentoId String
+  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

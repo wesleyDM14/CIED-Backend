@@ -7,14 +7,14 @@ class ProcedimentoController {
 
     async createProcedimento(req: Request, res: Response, next: NextFunction) {
         try {
-            const { nome, clientId, description, preco, metodoPagamento } = req.body;
+            const { nome, clientId, description, preco, metodoPagamento, ticketNumber } = req.body;
 
-            if (!nome || !clientId) {
+            if (!nome || !clientId || !ticketNumber) {
                 res.status(400).json({ error: 'Dados obrigatórios estao faltando.' });
                 return;
             }
 
-            const newProcedimento = await procedimentoService.createProcedimento(nome, clientId, description, preco, metodoPagamento);
+            const newProcedimento = await procedimentoService.createProcedimento(nome, clientId, ticketNumber, description, preco, metodoPagamento);
 
             res.status(201).json(newProcedimento);
             return;

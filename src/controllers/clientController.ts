@@ -7,14 +7,14 @@ class ClientController {
 
     async createClient(req: Request, res: Response, next: NextFunction) {
         try {
-            const { name, email, phone, address } = req.body;
+            const { name, email, phone, cpf, rg, dataNascimento, logradouro, bairro, cidade, uf, num } = req.body;
 
-            if (!name) {
-                res.status(400).json({ error: 'Nome é obrigatório.' });
+            if (!name || !cpf) {
+                res.status(400).json({ error: 'Nome de cliente e CPF são obrigatórios.' });
                 return;
             }
 
-            const newClient = await clientService.createClient(name, email, phone, address);
+            const newClient = await clientService.createClient(name, cpf, email, phone, rg, dataNascimento, logradouro, bairro, cidade, uf, num);
             res.status(201).json(newClient);
             return;
         } catch (error) {
@@ -48,22 +48,6 @@ class ClientController {
         }
     }
 
-    async getClientByEmail(req: Request, res: Response, next: NextFunction) {
-        try {
-            const email = req.params.email;
-
-            if (!email) {
-                res.status(400).json({ error: 'Email de cliente é obrigatório.' });
-            }
-
-            const client = await clientService.getClientByEmail(email);
-            res.status(200).json(client);
-            return;
-        } catch (error) {
-            next(error);
-        }
-    }
-
     async updatedClient(req: Request, res: Response, next: NextFunction) {
         try {
             const clientId = req.params.clientId;
@@ -73,14 +57,14 @@ class ClientController {
                 return;
             }
 
-            const { name, email, phone, address } = req.body;
+            const { name, cpf, email, phone, rg, dataNascimento, logradouro, bairro, cidade, uf, num } = req.body;
 
-            if (!name) {
-                res.status(400).json({ error: 'Nome é obrigatório.' });
+            if (!name || !cpf) {
+                res.status(400).json({ error: 'Nome e CPF são obrigatórios.' });
                 return;
             }
 
-            await clientService.updatedClient(clientId, name, email, phone, address);
+            await clientService.updatedClient(clientId, name, cpf, email, phone, rg, dataNascimento, logradouro, bairro, cidade, uf, num);
             res.status(200).json({ message: 'Cliente atualizado com sucesso.' });
             return;
         } catch (error) {

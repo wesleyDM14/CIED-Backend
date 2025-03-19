@@ -1,13 +1,19 @@
-import { MetodoPagamento } from "@prisma/client";
+import { MetodoPagamento, TicketStatus } from "@prisma/client";
 import prisma from "../database";
 
 class ProcedimentoService {
 
-    async createProcedimento(nome: string, clientId: string, description?: string, preco?: number, metodoPagamento?: MetodoPagamento) {
+    async createProcedimento(nome: string, clientId: string, ticketNumber: string, description?: string, preco?: number, metodoPagamento?: MetodoPagamento) {
         const existingClient = await prisma.client.findUnique({ where: { id: clientId } });
 
         if (!existingClient) {
             throw new Error('Cliente não encontrado no banco de dados');
+        }
+
+        const existingTicket = await prisma.ticket.findFirst({ where: { number: ticketNumber } });
+
+        if (!existingTicket) {
+            throw new Error("Senha não encontrada no banco de dados.");
         }
 
         const newProcedimento = await prisma.procedimento.create({
@@ -17,6 +23,13 @@ class ProcedimentoService {
                 description,
                 preco,
                 metodoPagamento
+            }
+        });
+
+        await prisma.ticket.update({
+            where: { id: existingTicket.id },
+            data: {
+                status: TicketStatus.FINISHED
             }
         });
 

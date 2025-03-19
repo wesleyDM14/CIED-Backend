@@ -4,38 +4,34 @@ import { io } from "../server";
 
 class TicketService {
 
-    async generateTicket(ticketType: TicketType) {
-        const today = new Date();
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    private getTypePrefix(type: TicketType): string {
+        return {
+            NORMAL: 'N',
+            PREFERENCIAL: 'P',
+            AGENDAMENTO: 'AG'
+        }[type];
+    }
 
-        const ticketCount = await prisma.ticket.count({
-            where: {
-                createdAt: {
-                    gte: todayStart
-                }
-            }
+    async generateTicket(procedimentoId: string, type: TicketType): Promise<string> {
+        const today = new Date();
+
+        const lastTicket = await prisma.ticket.findFirst({
+            where: { procedimentoId, type },
+            orderBy: { createdAt: 'desc' }
         });
 
-        const sequenceNumber = ticketCount + 1;
-
-        const paddedNumber = sequenceNumber.toString().padStart(3, '0');
-
-        const prefix = ticketType === 'NORMAL' ? 'NS' : 'PS';
-
+        const prefix = this.getTypePrefix(type);
         const day = today.getDate().toString();
 
-        const code = `${prefix}${day}${paddedNumber}`;
+        const sequence = lastTicket ? parseInt(lastTicket.number.split('-')[1]) + 1 : 1;
 
-        const ticket = await prisma.ticket.create({
-            data: {
-                number: code,
-                type: ticketType,
-            }
-        });
+        const code = `${prefix}-${day}${sequence.toString().padStart(4, '0')}`;
 
-        io.emit("ticket:created", ticket);
+        return code;
+    }
 
-        return ticket;
+    async createTicketWithScheduleCheck(procedimentoId: string, type: TicketType, scheduleDate: Date) {
+        //io.emit("ticket:created", ticket);
     }
 
     async getWaitingTickets(ticketType: TicketType) {
@@ -211,14 +207,14 @@ class TicketService {
 
         const today = new Date();
         const firstDayOfWeek = new Date(today);
-        firstDayOfWeek.setDate(today.getDate() - today.getDay() + 1);
+        firstDayOfWeek.setDate(today.getDate() - today.getDay());
 
         const weeklyTickets = allTickets.filter(ticket =>
             new Date(ticket.createdAt) >= firstDayOfWeek
         );
 
         const dailyCounts: Record<string, number> = {
-            "seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "sáb": 0, "dom": 0
+            "dom": 0, "seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "sáb": 0
         };
 
         weeklyTickets.forEach((ticket) => {

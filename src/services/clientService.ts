@@ -2,11 +2,33 @@ import prisma from "../database";
 
 class ClientService {
 
-    async createClient(name: string, email?: string, phone?: string, address?: string) {
-        const existingClient = await prisma.client.findUnique({ where: { email } });
+    async createClient
+        (
+            name: string,
+            cpf: string,
+            email?: string,
+            phone?: string,
+            rg?: string,
+            dataNascimento?: Date,
+            logradouro?: string,
+            bairro?: string,
+            cidade?: string,
+            uf?: string,
+            num?: number
+        ) {
+
+        const existingClient = await prisma.client.findFirst({
+            where: {
+                OR: [
+                    { cpf },
+                    ...(rg ? [{ rg }] : []),
+                    ...(email ? [{ email }] : [])
+                ]
+            }
+        });
 
         if (existingClient) {
-            throw new Error('Email já cadastrado no banco de dados.');
+            throw new Error('Já existe um cliente cadastrado com esse email, CPF ou RG.');
         }
 
         const newClient = await prisma.client.create({
@@ -14,7 +36,14 @@ class ClientService {
                 name,
                 email,
                 phone,
-                address
+                cpf,
+                rg,
+                dataNascimento,
+                logradouro,
+                bairro,
+                cidade,
+                uf,
+                num,
             }
         });
 
@@ -36,17 +65,20 @@ class ClientService {
         return client;
     }
 
-    async getClientByEmail(email: string) {
-        const client = await prisma.client.findUnique({ where: { email } });
-
-        if (!client) {
-            throw new Error('Cliente não encontrado no banco de dados.');
-        }
-
-        return client;
-    }
-
-    async updatedClient(clientId: string, name: string, email?: string, phone?: string, address?: string) {
+    async updatedClient(
+        clientId: string,
+        name: string,
+        cpf: string,
+        email?: string,
+        phone?: string,
+        rg?: string,
+        dataNascimento?: Date,
+        logradouro?: string,
+        bairro?: string,
+        cidade?: string,
+        uf?: string,
+        num?: number
+    ) {
         const existingClient = await prisma.client.findUnique({ where: { id: clientId } });
 
         if (!existingClient) {
@@ -57,9 +89,16 @@ class ClientService {
             where: { id: clientId },
             data: {
                 name,
-                phone,
-                email,
-                address
+                email: email ? email : existingClient.email,
+                phone: phone ? phone : existingClient.phone,
+                cpf: cpf ? cpf : existingClient.cpf,
+                rg: rg ? rg : existingClient.rg,
+                dataNascimento: dataNascimento ? dataNascimento : existingClient.dataNascimento,
+                logradouro: logradouro ? logradouro : existingClient.logradouro,
+                bairro: bairro ? bairro : existingClient.bairro,
+                cidade: cidade ? cidade : existingClient.cidade,
+                uf: uf ? uf : existingClient.uf,
+                num: num ? num : existingClient.num,
             }
         });
 
