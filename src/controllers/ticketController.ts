@@ -9,7 +9,7 @@ class TicketController {
 
     async createTicket(req: Request, res: Response, next: NextFunction) {
         try {
-            const { type } = req.body;
+            const { type, procedimentoId, scheduleDate } = req.body;
             const apiKey = req.headers["x-api-key"];
 
             if (!apiKey || apiKey !== process.env.APP_SECRET_KEY) {
@@ -22,12 +22,16 @@ class TicketController {
                 return;
             }
 
-            if (type !== 'NORMAL' && type !== 'PREFERENCIAL') {
+            if (!procedimentoId) {
+                res.status(400).json({ error: 'Procedimento é obrigatório.' });
+            }
+
+            if (type !== 'NORMAL' && type !== 'PREFERENCIAL' && type !== 'AGENDAMENTO') {
                 res.status(400).json({ error: 'Tipo de Ticket é inválido.' });
                 return;
             }
 
-            const ticket = await ticketService.generateTicket(type as TicketType);
+            const ticket = await ticketService.createTicketWithScheduleCheck(procedimentoId, type, scheduleDate);
             res.status(201).json(ticket);
             return;
 
@@ -38,14 +42,19 @@ class TicketController {
 
     async callNextTicket(req: Request, res: Response, next: NextFunction) {
         try {
-            const { serviceCounter } = req.body;
+            const { serviceCounter, procedimentoId } = req.body;
+
+            if (!procedimentoId) {
+                res.status(400).json({ error: 'Procedimento é obrigatório' });
+                return;
+            }
 
             if (!serviceCounter) {
                 res.status(400).json({ error: 'Service counter is required' });
                 return;
             }
 
-            const ticket = await ticketService.callNextTicket(serviceCounter);
+            const ticket = await ticketService.callNextTicket(procedimentoId, serviceCounter);
             res.status(200).json(ticket);
             return;
         } catch (error) {
@@ -74,8 +83,9 @@ class TicketController {
         try {
             const ticketsNormal = await ticketService.getWaitingTickets("NORMAL" as TicketType);
             const ticketsPreferencial = await ticketService.getWaitingTickets("PREFERENCIAL" as TicketType);
+            const ticketsAgendamento = await ticketService.getWaitingTickets("AGENDAMENTO" as TicketType);
 
-            res.status(200).json({ ticketsNormal, ticketsPreferencial });
+            res.status(200).json({ ticketsNormal, ticketsPreferencial, ticketsAgendamento });
             return;
         } catch (error) {
             next(error);

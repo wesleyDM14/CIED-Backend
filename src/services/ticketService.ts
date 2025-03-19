@@ -1,6 +1,7 @@
 import { TicketStatus, TicketType } from "@prisma/client";
 import prisma from "../database";
 import { io } from "../server";
+import { addDays, isWithinInterval, startOfWeek } from 'date-fns';
 
 class TicketService {
 
@@ -14,29 +15,68 @@ class TicketService {
 
     async generateTicket(procedimentoId: string, type: TicketType): Promise<string> {
         const today = new Date();
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
 
         const lastTicket = await prisma.ticket.findFirst({
-            where: { procedimentoId, type },
+            where: {
+                procedimentoId,
+                type,
+                createdAt: { gte: startOfDay }
+            },
             orderBy: { createdAt: 'desc' }
         });
 
         const prefix = this.getTypePrefix(type);
-        const day = today.getDate().toString();
-
-        const sequence = lastTicket ? parseInt(lastTicket.number.split('-')[1]) + 1 : 1;
-
-        const code = `${prefix}-${day}${sequence.toString().padStart(4, '0')}`;
+        const sequence = lastTicket
+            ? parseInt(lastTicket.code.slice(1)) + 1
+            : 1;
+        const code = `${prefix}${sequence.toString().padStart(2, '0')}`;
 
         return code;
     }
 
-    async createTicketWithScheduleCheck(procedimentoId: string, type: TicketType, scheduleDate: Date) {
-        //io.emit("ticket:created", ticket);
+    async createTicketWithScheduleCheck(procedimentoId: string, type: TicketType, scheduleDate?: Date) {
+        const weeklySchedule = await prisma.weeklySchedule.findFirst({
+            where: {
+                weekStart: { lte: new Date() },
+                procedimentos: { some: { procedimentoId } }
+            },
+            orderBy: { weekStart: 'desc' },
+        });
+
+        if (!weeklySchedule) {
+            throw new Error('Procedimento não disponível esta semana');
+        }
+
+        if (type === 'AGENDAMENTO' && scheduleDate) {
+            const weekStart = startOfWeek(new Date());
+            const weekEnd = addDays(weekStart, 6);
+
+            if (!isWithinInterval(scheduleDate, { start: weekStart, end: weekEnd })) {
+                throw new Error('Agendamento permitido apenas para a semana corrente');
+            }
+        }
+
+        const code = await this.generateTicket(procedimentoId, type);
+
+        const newTicket = await prisma.ticket.create({
+            data: {
+                code,
+                type,
+                status: 'WAITING',
+                procedimentoId,
+                scheduleAt: type === 'AGENDAMENTO' ? scheduleDate : null,
+            }
+        });
+
+        io.emit("ticket:created", newTicket);
+
+        return newTicket;
     }
 
     async getWaitingTickets(ticketType: TicketType) {
-        const today = new Date();
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
 
         const tickets = await prisma.ticket.findMany({
             where: {
@@ -53,13 +93,14 @@ class TicketService {
         return tickets;
     }
 
-    async getLastCalledTicket() {
-        const today = new Date();
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    async getLastCalledTicket(procedimentoId: string) {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
 
         const lastTicket = await prisma.ticket.findFirst({
             where: {
-                status: { in: [TicketStatus.CALLED, TicketStatus.FINISHED] },
+                status: TicketStatus.CALLED,
+                procedimentoId: procedimentoId,
                 createdAt: { gte: todayStart }
             },
             orderBy: { calledAt: 'desc' }
@@ -68,14 +109,14 @@ class TicketService {
         return lastTicket;
     }
 
-    async callNextTicket(serviceCounter: string) {
-        const preferentialTickets = (await this.getWaitingTickets('PREFERENCIAL' as TicketType))
-            .filter(ticket => ticket.status !== TicketStatus.CALLED);
+    async callNextTicket(serviceCounter: string, procedimentoId: string) {
+        const preferentialTickets = (await this.getWaitingTickets(TicketType.PREFERENCIAL))
+            .filter(ticket => ticket.status !== TicketStatus.CALLED && ticket.procedimentoId === procedimentoId);
 
-        const normalTickets = (await this.getWaitingTickets('NORMAL' as TicketType))
-            .filter(ticket => ticket.status !== TicketStatus.CALLED);
+        const normalTickets = (await this.getWaitingTickets(TicketType.NORMAL))
+            .filter(ticket => ticket.status !== TicketStatus.CALLED && ticket.procedimentoId === procedimentoId);
 
-        const lastCalled = await this.getLastCalledTicket();
+        const lastCalled = await this.getLastCalledTicket(procedimentoId);
 
         let ticketToCall = null;
 
@@ -113,15 +154,16 @@ class TicketService {
         });
 
         io.emit("ticket:called", {
-            number: updatedTicket.number,
-            serviceCounter: updatedTicket.serviceCounter
+            number: updatedTicket.code,
+            serviceCounter: updatedTicket.serviceCounter,
+            procedimentoId: updatedTicket.procedimentoId
         });
 
         return updatedTicket;
     }
 
-    async callSpecificTicket(number: string, serviceCounter: string) {
-        const ticket = await prisma.ticket.findFirst({ where: { number } });
+    async callSpecificTicket(code: string, serviceCounter: string) {
+        const ticket = await prisma.ticket.findFirst({ where: { code } });
 
         if (!ticket) {
             throw new Error('Ticket não encontrado no banco de dados.');
@@ -137,7 +179,7 @@ class TicketService {
         });
 
         io.emit("ticket:called", {
-            number: updatedTicket.number,
+            number: updatedTicket.code,
             serviceCounter: updatedTicket.serviceCounter
         });
 
@@ -145,11 +187,12 @@ class TicketService {
     }
 
     async getDisplayData() {
-        const today = new Date();
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
         const currentCalled = await prisma.ticket.findFirst({
             where: {
-                status: { in: [TicketStatus.CALLED, TicketStatus.FINISHED] },
+                status: TicketStatus.CALLED,
                 createdAt: { gte: todayStart }
             },
             orderBy: { calledAt: 'desc' }
@@ -157,7 +200,7 @@ class TicketService {
 
         const lastCalledTickets = await prisma.ticket.findMany({
             where: {
-                status: { in: [TicketStatus.CALLED, TicketStatus.FINISHED] },
+                status: TicketStatus.CALLED,
                 createdAt: { gte: todayStart }
             },
             orderBy: { calledAt: 'desc' },
@@ -245,7 +288,6 @@ class TicketService {
 
         const statusCounts = {
             total: allTickets.length,
-            finished: allTickets.filter(t => t.status === 'FINISHED').length,
             canceled: allTickets.filter(t => t.status === 'CANCELED').length,
             waiting: allTickets.filter(t => t.status === 'WAITING').length,
             called: allTickets.filter(t => t.status === 'CALLED').length
@@ -259,9 +301,9 @@ class TicketService {
             ],
             averageAttendances: average,
             statusDistribution: [
-                { status: 'Finalizadas', count: statusCounts.finished },
                 { status: 'Canceladas', count: statusCounts.canceled },
-                { status: 'Pendentes', count: statusCounts.waiting + statusCounts.called }
+                { status: 'Pendentes', count: statusCounts.waiting },
+                { status: 'Chamadas', count: statusCounts.called }
             ],
             totalTickets: statusCounts.total
         };
