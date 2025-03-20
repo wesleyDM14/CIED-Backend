@@ -55,7 +55,7 @@ model Client {
   name           String
   email          String?   @unique
   phone          String?
-  cpf            String   @unique
+  cpf            String    @unique
   rg             String?   @unique
   dataNascimento DateTime?
 
@@ -107,6 +107,7 @@ model Atendimento {
   preco           Float?
   metodoPagamento MetodoPagamento?
   observacoes     String?
+  data            DateTime
 
   ticketId String @unique
   ticket   Ticket @relation(fields: [ticketId], references: [id])
