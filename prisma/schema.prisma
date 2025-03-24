@@ -122,9 +122,9 @@ model Atendimento {
   updatedAt DateTime @updatedAt
 }
 
-model WeeklySchedule {
-  id        String   @id @default(uuid())
-  weekStart DateTime @unique
+model DailySchedule {
+  id   String   @id @default(uuid())
+  date DateTime @unique
 
   procedimentos ScheduleProcedimento[]
 
@@ -135,8 +135,8 @@ model WeeklySchedule {
 model ScheduleProcedimento {
   id String @id @default(uuid())
 
-  weeklyScheduleId String
-  weeklySchedule   WeeklySchedule @relation(fields: [weeklyScheduleId], references: [id])
+  dailyScheduleId String
+  dailySchedule   DailySchedule @relation(fields: [dailyScheduleId], references: [id])
 
   procedimentoId String
   procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
