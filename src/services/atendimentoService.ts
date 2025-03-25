@@ -2,9 +2,24 @@ import prisma from "../database";
 
 import { MetodoPagamento } from "@prisma/client";
 
+interface CamposMedicos {
+    pressaoArterial?: number;
+    frequenciaCardiaca?: number;
+    temperatura?: number;
+    spo2?: number;
+    peso?: number;
+    altura?: number;
+    imc?: number;
+    queixaPrincipal?: string;
+    historiaClinica?: string;
+    exameFisico?: string;
+    hipoteseDiagnostica?: string;
+    conduta?: string
+}
+
 class AtendimentoService {
 
-    async createAtendimento(clientId: string, ticketId: string, preco: number, metodoPagamento: MetodoPagamento, observacoes: string, data: Date) {
+    async createAtendimento(clientId: string, ticketId: string, preco: number, metodoPagamento: MetodoPagamento, observacoes: string, data: Date, camposMedicos?: CamposMedicos) {
         const existingClient = await prisma.client.findUnique({ where: { id: clientId } });
 
         if (!existingClient) {
@@ -30,7 +45,8 @@ class AtendimentoService {
                 metodoPagamento,
                 observacoes,
                 data,
-                procedimentoId: existingTicket.procedimento.id
+                procedimentoId: existingTicket.procedimento.id,
+                ...camposMedicos
             }
         });
 
@@ -90,7 +106,7 @@ class AtendimentoService {
         return atendimentos;
     }
 
-    async updateAtendimento(atendimentoId: string, preco: number, metodoPagamento: MetodoPagamento, observacoes: string, data: Date) {
+    async updateAtendimento(atendimentoId: string, preco: number, metodoPagamento: MetodoPagamento, observacoes: string, data: Date, camposMedicos?: CamposMedicos) {
         const existingAtendimento = await prisma.atendimento.findUnique({ where: { id: atendimentoId } });
 
         if (!existingAtendimento) {
@@ -103,7 +119,8 @@ class AtendimentoService {
                 preco,
                 metodoPagamento,
                 observacoes,
-                data
+                data,
+                ...camposMedicos
             }
         });
 

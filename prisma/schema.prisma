@@ -109,6 +109,20 @@ model Atendimento {
   observacoes     String?
   data            DateTime
 
+  ordemServico        String?
+  pressaoArterial     Int?
+  frequenciaCardiaca  Int?
+  temperatura         Float?
+  spo2                Float?
+  peso                Float?
+  altura              Float?
+  imc                 Float?
+  queixaPrincipal     String?
+  historiaClinica     String?
+  exameFisico         String?
+  hipoteseDiagnostica String?
+  conduta             String?
+
   ticketId String @unique
   ticket   Ticket @relation(fields: [ticketId], references: [id])
 

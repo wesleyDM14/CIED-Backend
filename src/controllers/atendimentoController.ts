@@ -6,14 +6,54 @@ const atendimentoService = new AtendimentoService();
 class AtendimentoController {
     async createAtendimento(req: Request, res: Response, next: NextFunction) {
         try {
-            const { clientId, ticketId, preco, metodoPagamento, observacoes, data } = req.body;
+            const {
+                clientId,
+                ticketId,
+                preco,
+                metodoPagamento,
+                observacoes,
+                data,
+                pressaoArterial,
+                frequenciaCardiaca,
+                temperatura,
+                spo2,
+                peso,
+                altura,
+                imc,
+                queixaPrincipal,
+                historiaClinica,
+                exameFisico,
+                hipoteseDiagnostica,
+                conduta
+            } = req.body;
 
             if (!ticketId || !clientId) {
                 res.status(400).json({ error: `ID's de Ticket de atendimento e Cliente são obrigatórios.` });
                 return;
             }
 
-            const newAtendimento = await atendimentoService.createAtendimento(clientId, ticketId, preco, metodoPagamento, observacoes, data);
+            const newAtendimento = await atendimentoService.createAtendimento(
+                clientId,
+                ticketId,
+                preco,
+                metodoPagamento,
+                observacoes,
+                data,
+                {
+                    pressaoArterial,
+                    frequenciaCardiaca,
+                    temperatura,
+                    spo2,
+                    peso,
+                    altura,
+                    imc,
+                    queixaPrincipal,
+                    historiaClinica,
+                    exameFisico,
+                    hipoteseDiagnostica,
+                    conduta
+                }
+            );
 
             res.status(201).json(newAtendimento);
             return;
@@ -113,9 +153,46 @@ class AtendimentoController {
                 return;
             }
 
-            const { preco, metodoPagamento, observacoes, data } = req.body;
+            const {
+                preco,
+                metodoPagamento,
+                observacoes,
+                data,
+                pressaoArterial,
+                frequenciaCardiaca,
+                temperatura,
+                spo2,
+                peso,
+                altura,
+                imc,
+                queixaPrincipal,
+                historiaClinica,
+                exameFisico,
+                hipoteseDiagnostica,
+                conduta
+            } = req.body;
 
-            await atendimentoService.updateAtendimento(atendimentoId, preco, metodoPagamento, observacoes, data);
+            await atendimentoService.updateAtendimento(
+                atendimentoId,
+                preco,
+                metodoPagamento,
+                observacoes,
+                data,
+                {
+                    pressaoArterial,
+                    frequenciaCardiaca,
+                    temperatura,
+                    spo2,
+                    peso,
+                    altura,
+                    imc,
+                    queixaPrincipal,
+                    historiaClinica,
+                    exameFisico,
+                    hipoteseDiagnostica,
+                    conduta
+                }
+            );
 
             res.status(200).json({ message: 'Atendimento Atualizado com Sucesso.' });
             return;
