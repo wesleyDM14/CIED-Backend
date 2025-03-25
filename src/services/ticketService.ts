@@ -13,6 +13,28 @@ class TicketService {
         }[type];
     }
 
+    private async isProcedimentoDisponivelNoMes(procedimentoId: string, mes: number, ano: number) {
+        const agendaMensal = await prisma.dailySchedule.findMany({
+            where: {
+                date: {
+                    gte: new Date(ano, mes - 1, 1),
+                    lt: new Date(ano, mes, 1),
+                },
+            },
+            include: {
+                procedimentos: {
+                    include: {
+                        procedimento: true,
+                    },
+                },
+            },
+        });
+
+        return agendaMensal.some(agenda =>
+            agenda.procedimentos.some(p => p.procedimentoId === procedimentoId)
+        );
+    }
+
     async generateTicket(procedimentoId: string, type: TicketType): Promise<string> {
         const today = new Date();
         const startOfDay = new Date(today.setHours(0, 0, 0, 0));
@@ -35,26 +57,17 @@ class TicketService {
         return code;
     }
 
-    async createTicketWithScheduleCheck(procedimentoId: string, type: TicketType, scheduleDate?: Date) {
-        const weeklySchedule = await prisma.weeklySchedule.findFirst({
+    async createTicket(procedimentoId: string, type: TicketType) {
+        const isAvailable = await prisma.dailySchedule.findFirst({
             where: {
-                weekStart: { lte: new Date() },
+                date: { lte: new Date() },
                 procedimentos: { some: { procedimentoId } }
             },
-            orderBy: { weekStart: 'desc' },
+            orderBy: { date: 'desc' }
         });
 
-        if (!weeklySchedule) {
-            throw new Error('Procedimento não disponível esta semana');
-        }
-
-        if (type === 'AGENDAMENTO' && scheduleDate) {
-            const weekStart = startOfWeek(new Date());
-            const weekEnd = addDays(weekStart, 6);
-
-            if (!isWithinInterval(scheduleDate, { start: weekStart, end: weekEnd })) {
-                throw new Error('Agendamento permitido apenas para a semana corrente');
-            }
+        if (!isAvailable) {
+            throw new Error('Procedimento não disponível hoje.');
         }
 
         const code = await this.generateTicket(procedimentoId, type);
@@ -64,13 +77,33 @@ class TicketService {
                 code,
                 type,
                 status: 'WAITING',
-                procedimentoId,
-                scheduleAt: type === 'AGENDAMENTO' ? scheduleDate : null,
+                procedimentoId
             }
         });
 
         io.emit("ticket:created", newTicket);
+        return newTicket;
+    }
 
+    async createScheduledTicket(procedimentoId: string, scheduleDate: Date) {
+        const mes = scheduleDate.getMonth() + 1;
+        const ano = scheduleDate.getFullYear();
+
+        const isDisponivel = await this.isProcedimentoDisponivelNoMes(procedimentoId, mes, ano);
+
+        const code = await this.generateTicket(procedimentoId, TicketType.AGENDAMENTO);
+
+        const newTicket = await prisma.ticket.create({
+            data: {
+                code,
+                type: TicketType.AGENDAMENTO,
+                status: 'WAITING',
+                procedimentoId,
+                scheduleAt: scheduleDate,
+            },
+        });
+
+        io.emit("agendamento:created", newTicket);
         return newTicket;
     }
 

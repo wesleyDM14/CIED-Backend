@@ -9,7 +9,7 @@ class TicketController {
 
     async createTicket(req: Request, res: Response, next: NextFunction) {
         try {
-            const { type, procedimentoId, scheduleDate } = req.body;
+            const { type, procedimentoId } = req.body;
             const apiKey = req.headers["x-api-key"];
 
             if (!apiKey || apiKey !== process.env.APP_SECRET_KEY) {
@@ -31,8 +31,27 @@ class TicketController {
                 return;
             }
 
-            const ticket = await ticketService.createTicketWithScheduleCheck(procedimentoId, type, scheduleDate);
+            const ticket = await ticketService.createTicket(procedimentoId, type);
             res.status(201).json(ticket);
+            return;
+
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async createScheduledTicket(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { scheduleDate, procedimentoId } = req.body;
+
+            if (!procedimentoId || !scheduleDate) {
+                res.status(400).json({ error: 'Procedimento e Data são obrigatórios.' });
+            }
+
+            const data = new Date(scheduleDate);
+
+            const ticketAgendamento = await ticketService.createScheduledTicket(procedimentoId, data);
+            res.status(201).json(ticketAgendamento);
             return;
 
         } catch (error) {
