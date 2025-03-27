@@ -14,7 +14,9 @@ class ProcedimentoService {
     }
 
     async getProcedimentos() {
-        const procedimentos = await prisma.procedimento.findMany();
+        const procedimentos = await prisma.procedimento.findMany({
+            orderBy: { description: 'asc' }
+        });
         return procedimentos;
     }
 

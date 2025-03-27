@@ -6,6 +6,7 @@ import http from 'http';
 import { Server } from "socket.io";
 
 import { errorMiddleware } from "./middlewares/errorMiddleware";
+import { createAdminUser } from "./functions/createAdminUser";
 
 dotenv.config();
 
