@@ -18,18 +18,40 @@ class AgendaService {
                 })
             );
 
-            return await prisma.dailySchedule.create({
-                data: {
-                    date: e.date,
-                    procedimentos: {
-                        createMany: {
-                            data: procedimentosExistentes.map((procedimento) => ({
-                                procedimentoId: procedimento.id,
-                            })),
+            const existingShcedule = await prisma.dailySchedule.findUnique({
+                where: { date: e.date }
+            });
+
+            if (existingShcedule) {
+                await prisma.scheduleProcedimento.deleteMany({ where: { dailyScheduleId: existingShcedule.id } });
+
+                return await prisma.dailySchedule.update({
+                    where: { date: e.date },
+                    data: {
+                        procedimentos: {
+                            createMany: {
+                                data: procedimentosExistentes.map((procedimento) => ({
+                                    procedimentoId: procedimento.id,
+                                })),
+                            },
+                        },
+                    }
+                })
+            } else {
+                return await prisma.dailySchedule.create({
+                    data: {
+                        date: e.date,
+                        procedimentos: {
+                            createMany: {
+                                data: procedimentosExistentes.map((procedimento) => ({
+                                    procedimentoId: procedimento.id,
+                                })),
+                            },
                         },
                     },
-                },
-            });
+                });
+            }
+
         }));
     }
 
@@ -79,18 +101,39 @@ class AgendaService {
             })
         );
 
-        return await prisma.dailySchedule.create({
-            data: {
-                date,
-                procedimentos: {
-                    createMany: {
-                        data: procedimentosExistentes.map((procedimento) => ({
-                            procedimentoId: procedimento.id,
-                        })),
+        const existingShcedule = await prisma.dailySchedule.findUnique({
+            where: { date: date }
+        });
+
+        if (existingShcedule) {
+            await prisma.scheduleProcedimento.deleteMany({ where: { dailyScheduleId: existingShcedule.id } });
+
+            return await prisma.dailySchedule.update({
+                where: { date: date },
+                data: {
+                    procedimentos: {
+                        createMany: {
+                            data: procedimentosExistentes.map((procedimento) => ({
+                                procedimentoId: procedimento.id,
+                            })),
+                        },
+                    },
+                }
+            })
+        } else {
+            return await prisma.dailySchedule.create({
+                data: {
+                    date,
+                    procedimentos: {
+                        createMany: {
+                            data: procedimentosExistentes.map((procedimento) => ({
+                                procedimentoId: procedimento.id,
+                            })),
+                        },
                     },
                 },
-            },
-        });
+            });
+        }
     }
 
     async getAgendaMensal(month: number, year: number) {
