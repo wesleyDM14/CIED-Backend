@@ -40,6 +40,33 @@ class TicketController {
         }
     }
 
+    async createTicketFromWebApp(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { type, procedimentoId } = req.body;
+
+            if (!type) {
+                res.status(400).json({ error: 'Tipo de ticket é obrigatório.' });
+                return;
+            }
+
+            if (!procedimentoId) {
+                res.status(400).json({ error: 'Procedimento é obrigatório.' });
+            }
+
+            if (type !== 'NORMAL' && type !== 'PREFERENCIAL' && type !== 'AGENDAMENTO') {
+                res.status(400).json({ error: 'Tipo de Ticket é inválido.' });
+                return;
+            }
+
+            const ticket = await ticketService.createTicket(procedimentoId, type);
+            res.status(201).json(ticket);
+            return;
+
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async createScheduledTicket(req: Request, res: Response, next: NextFunction) {
         try {
             const { scheduleDate, procedimentoId } = req.body;

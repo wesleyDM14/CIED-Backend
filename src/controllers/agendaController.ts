@@ -99,6 +99,7 @@ class AgendaController {
             }
 
             const agenda = await agendaService.getAgendaDiaria(new Date(date as string));
+            
             res.status(200).json(agenda);
             return;
         } catch (error) {

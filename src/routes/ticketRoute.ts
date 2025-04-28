@@ -6,6 +6,7 @@ const ticketController = new TicketController();
 const router = Router();
 
 router.post('/create', ticketController.createTicket.bind(ticketController));
+router.post('/loggedCreate', authMiddleware, ticketController.createTicketFromWebApp.bind(ticketController));
 router.post('/call', authMiddleware, ticketController.callNextTicket.bind(ticketController));
 router.post('/call-specific', authMiddleware, ticketController.callSpecificTicket.bind(ticketController));
 router.get('/display-data', authMiddleware, ticketController.getDisplayData.bind(ticketController));

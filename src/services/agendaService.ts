@@ -173,8 +173,16 @@ class AgendaService {
     }
 
     async getAgendaDiaria(date: Date) {
+        const startOfDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0));
+        const endOfDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+
         return await prisma.dailySchedule.findFirst({
-            where: { date },
+            where: {
+                date: {
+                    gte: startOfDay,
+                    lte: endOfDay
+                }
+            },
             include: {
                 procedimentos: {
                     include: {
