@@ -78,6 +78,9 @@ class TicketService {
                 type,
                 status: 'WAITING',
                 procedimentoId
+            },
+            include: {
+                procedimento: true
             }
         });
 
@@ -341,6 +344,56 @@ class TicketService {
             totalTickets: statusCounts.total
         };
     }
+
+    async getQueue() {
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const daily = await prisma.dailySchedule.findFirst({
+            where: {
+                date: todayStart
+            },
+            include: {
+                procedimentos: {
+                    include: {
+                        procedimento: true
+                    }
+                }
+            }
+        });
+
+        if (!daily) return [];
+
+        const filas = [];
+
+        for (const sp of daily.procedimentos) {
+            const procedimento = sp.procedimento;
+
+            const tickets = await prisma.ticket.findMany({
+                where: {
+                    procedimentoId: procedimento.id,
+                    status: { in: ["WAITING", "CALLED"] },
+                    createdAt: { gte: todayStart }
+                },
+                orderBy: { createdAt: 'asc' }
+            });
+
+            const normal = tickets.filter(t => t.type === TicketType.NORMAL);
+            const preferencial = tickets.filter(t => t.type === TicketType.PREFERENCIAL);
+
+            filas.push({
+                procedimentoId: procedimento.id,
+                nome: procedimento.description,
+                profissional: procedimento.nomeProfissional,
+                normal,
+                preferencial
+            });
+        }
+
+        return filas;
+    }
+
 }
 
 export default TicketService;

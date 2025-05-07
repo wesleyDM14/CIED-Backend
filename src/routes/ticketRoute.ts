@@ -10,7 +10,7 @@ router.post('/loggedCreate', authMiddleware, ticketController.createTicketFromWe
 router.post('/call', authMiddleware, ticketController.callNextTicket.bind(ticketController));
 router.post('/call-specific', authMiddleware, ticketController.callSpecificTicket.bind(ticketController));
 router.get('/display-data', authMiddleware, ticketController.getDisplayData.bind(ticketController));
-router.get('/queue', authMiddleware, ticketController.getTicketQueue.bind(ticketController));
+router.get('/queue', authMiddleware, ticketController.getQueue.bind(ticketController));
 router.get('/dashboard-summary', authMiddleware, ticketController.getDashboardSummary.bind(ticketController));
 router.delete('/ticket/:ticketId', authMiddleware, ticketController.deleteTicket.bind(ticketController));
 

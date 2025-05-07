@@ -174,6 +174,16 @@ class TicketController {
             next(error);
         }
     }
+
+    async getQueue(req: Request, res: Response, next: NextFunction) {
+        try {
+            const filas = await ticketService.getQueue();
+            res.json(filas);
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default TicketController;
