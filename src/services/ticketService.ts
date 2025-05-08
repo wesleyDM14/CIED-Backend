@@ -2,6 +2,8 @@ import { TicketStatus, TicketType } from "@prisma/client";
 import prisma from "../database";
 import { io } from "../server";
 import { addDays, isWithinInterval, startOfWeek } from 'date-fns';
+import { DateTime } from "luxon";
+
 
 class TicketService {
 
@@ -132,21 +134,25 @@ class TicketService {
     }
 
     async getWaitingTickets(ticketType: TicketType) {
-        const todayStart = new Date();
-        todayStart.setUTCHours(0, 0, 0, 0);
-
+        // 1. Cria o início do dia no fuso do Brasil
+        const todayStartBR = DateTime.now()
+            .setZone('America/Sao_Paulo') // Define o fuso correto
+            .startOf('day') // Meia-noite no horário brasileiro
+            .toJSDate(); // Converte para Date do JS
+    
+        // 2. Consulta usando o horário ajustado
         const tickets = await prisma.ticket.findMany({
             where: {
                 type: ticketType,
                 status: { in: ["WAITING", "CALLED"] },
-                createdAt: { gte: todayStart }
+                createdAt: { gte: todayStartBR }
             },
             orderBy: [
                 { status: 'asc' },
                 { createdAt: 'asc' }
             ]
         });
-
+    
         return tickets;
     }
 
