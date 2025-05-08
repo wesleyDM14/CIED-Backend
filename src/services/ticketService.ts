@@ -141,6 +141,8 @@ class TicketService {
             .toJSDate(); // Converte para Date do JS
     
         // 2. Consulta usando o horário ajustado
+
+        console.log(todayStartBR);
         const tickets = await prisma.ticket.findMany({
             where: {
                 type: ticketType,
