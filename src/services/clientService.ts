@@ -2,27 +2,28 @@ import prisma from "../database";
 
 class ClientService {
 
-    async createClient
-        (
-            name: string,
-            cpf: string,
-            email?: string,
-            phone?: string,
-            rg?: string,
-            dataNascimento?: Date,
-            logradouro?: string,
-            bairro?: string,
-            cidade?: string,
-            uf?: string,
-            num?: number
-        ) {
+    async createClient(
+        name: string,
+        cpf: string,
+        email?: string,
+        phone?: string,
+        rg?: string,
+        dataNascimento?: Date,
+        logradouro?: string,
+        bairro?: string,
+        cidade?: string,
+        uf?: string,
+        num?: number
+    ) {
+        const normalizedEmail = email?.trim() === '' ? null : email;
+        const normalizedRG = rg?.trim() === '' ? null : rg;
 
         const existingClient = await prisma.client.findFirst({
             where: {
                 OR: [
                     { cpf },
-                    ...(rg ? [{ rg }] : []),
-                    ...(email ? [{ email }] : [])
+                    ...(normalizedRG ? [{ rg: normalizedRG }] : []),
+                    ...(normalizedEmail ? [{ email: normalizedEmail }] : [])
                 ]
             }
         });
@@ -34,15 +35,15 @@ class ClientService {
         const newClient = await prisma.client.create({
             data: {
                 name,
-                email,
-                phone,
+                email: normalizedEmail,
+                phone: phone?.trim() === '' ? null : phone,
                 cpf,
-                rg,
+                rg: normalizedRG,
                 dataNascimento,
-                logradouro,
-                bairro,
-                cidade,
-                uf,
+                logradouro: logradouro?.trim() === '' ? null : logradouro,
+                bairro: bairro?.trim() === '' ? null : bairro,
+                cidade: cidade?.trim() === '' ? null : cidade,
+                uf: uf?.trim() === '' ? null : uf,
                 num,
             }
         });

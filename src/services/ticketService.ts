@@ -13,6 +13,14 @@ class TicketService {
         }[type];
     }
 
+    private generateProcedimentoPrefix(name: string): string {
+        const words = name.trim().split(/\s+/);
+        if (words.length === 1) {
+            return words[0].substring(0, 2).toUpperCase(); // Ex: "RaioX" => "RA"
+        }
+        return words.map(w => w[0].toUpperCase()).join('').substring(0, 3); // Ex: "Exame Sangue" => "ES"
+    }
+
     private async isProcedimentoDisponivelNoMes(procedimentoId: string, mes: number, ano: number) {
         const agendaMensal = await prisma.dailySchedule.findMany({
             where: {
@@ -39,6 +47,19 @@ class TicketService {
         const today = new Date();
         const startOfDay = new Date(today.setHours(0, 0, 0, 0));
 
+        const procedimento = await prisma.procedimento.findUnique({
+            where: { id: procedimentoId },
+        });
+
+        if (!procedimento) {
+            throw new Error('Procedimento não encontrado.');
+        }
+
+        const prefixType = this.getTypePrefix(type); // Ex: N, P, AG
+        const procPrefix = this.generateProcedimentoPrefix(procedimento.description); // Ex: FO, EX
+
+        const prefix = `${procPrefix}-${prefixType}`; // Ex: FO-N, FO-P
+
         const lastTicket = await prisma.ticket.findFirst({
             where: {
                 procedimentoId,
@@ -48,11 +69,11 @@ class TicketService {
             orderBy: { createdAt: 'desc' }
         });
 
-        const prefix = this.getTypePrefix(type);
         const sequence = lastTicket
-            ? parseInt(lastTicket.code.slice(1)) + 1
+            ? parseInt(lastTicket.code.split('-')[1]?.slice(1)) + 1
             : 1;
-        const code = `${prefix}${sequence.toString().padStart(2, '0')}`;
+
+        const code = `${prefix}${sequence.toString().padStart(2, '0')}`; // Ex: FO-N01
 
         return code;
     }
@@ -211,6 +232,9 @@ class TicketService {
                 status: TicketStatus.CALLED,
                 serviceCounter: serviceCounter,
                 calledAt: new Date()
+            },
+            include: {
+                procedimento: true
             }
         });
 
@@ -394,6 +418,22 @@ class TicketService {
         return filas;
     }
 
+    async finalizeTicket(ticketId: string) {
+        const existingTicket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+
+        if (!existingTicket) {
+            throw new Error('Ticket não encontrado no Banco de Dados');
+        }
+
+        await prisma.ticket.update({
+            where: { id: existingTicket.id },
+            data: {
+                status: 'CANCELED'
+            }
+        });
+
+        return;
+    }
 }
 
 export default TicketService;

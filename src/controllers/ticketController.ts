@@ -184,6 +184,24 @@ class TicketController {
             next(error);
         }
     }
+
+    async finalizeTicket(req: Request, res: Response, next: NextFunction) {
+        try {
+            const ticketId = req.params.ticketId;
+
+            if (!ticketId) {
+                res.status(400).json({ error: 'ID de ticket é obrigatório.' });
+                return;
+            }
+
+            await ticketService.finalizeTicket(ticketId);
+            res.status(200).json({ message: 'Ticket deletado com sucesso.' });
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
 }
 
 export default TicketController;
