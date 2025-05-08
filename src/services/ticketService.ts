@@ -139,11 +139,8 @@ class TicketService {
             .setZone('America/Sao_Paulo') // Define o fuso correto
             .startOf('day') // Meia-noite no horário brasileiro
             .toJSDate(); // Converte para Date do JS
-    
-        // 2. Consulta usando o horário ajustado
 
-        console.log("Data de início (BR):", todayStartBR.toISOString());
-        console.log('foda');
+        // 2. Consulta usando o horário ajustado
         const tickets = await prisma.ticket.findMany({
             where: {
                 type: ticketType,
@@ -155,7 +152,7 @@ class TicketService {
                 { createdAt: 'asc' }
             ]
         });
-    
+
         return tickets;
     }
 
@@ -380,12 +377,14 @@ class TicketService {
 
     async getQueue() {
 
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const todayStartBR = DateTime.now()
+            .setZone('America/Sao_Paulo') // Define o fuso correto
+            .startOf('day') // Meia-noite no horário brasileiro
+            .toJSDate();
 
         const daily = await prisma.dailySchedule.findFirst({
             where: {
-                date: todayStart
+                date: todayStartBR
             },
             include: {
                 procedimentos: {
@@ -407,7 +406,7 @@ class TicketService {
                 where: {
                     procedimentoId: procedimento.id,
                     status: { in: ["WAITING", "CALLED"] },
-                    createdAt: { gte: todayStart }
+                    createdAt: { gte: todayStartBR }
                 },
                 orderBy: { createdAt: 'asc' }
             });
