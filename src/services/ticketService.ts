@@ -142,7 +142,8 @@ class TicketService {
     
         // 2. Consulta usando o horário ajustado
 
-        console.log(todayStartBR);
+        console.log("Data de início (BR):", todayStartBR.toISOString());
+        console.log('foda');
         const tickets = await prisma.ticket.findMany({
             where: {
                 type: ticketType,
