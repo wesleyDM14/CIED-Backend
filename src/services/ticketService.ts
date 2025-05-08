@@ -133,7 +133,7 @@ class TicketService {
 
     async getWaitingTickets(ticketType: TicketType) {
         const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        todayStart.setUTCHours(0, 0, 0, 0);
 
         const tickets = await prisma.ticket.findMany({
             where: {
