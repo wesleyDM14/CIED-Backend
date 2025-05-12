@@ -440,6 +440,12 @@ class TicketService {
             }
         });
 
+        io.emit("ticket:finished", {
+            code: existingTicket.code,
+            procedimentoId: existingTicket.procedimentoId,
+            type: existingTicket.type
+        });
+
         return;
     }
 }
