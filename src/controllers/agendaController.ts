@@ -99,7 +99,31 @@ class AgendaController {
             }
 
             const agenda = await agendaService.getAgendaDiaria(new Date(date as string));
+
+            res.status(200).json(agenda);
+            return;
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getAgendaDiariaTotem(req: Request, res: Response, next: NextFunction) {
+        try {
+            const apiKey = req.headers["x-api-key"];
+            const { date } = req.query;
+
+            if (!apiKey || apiKey !== process.env.APP_SECRET_KEY) {
+                res.status(403).json({ error: "Acesso não autorizado." });
+                return;
+            }
+
+            if (!date) {
+                res.status(400).json({ message: "A data é obrigatória." });
+                return;
+            }
             
+            const agenda = await agendaService.getAgendaDiaria(new Date(date as string));
+
             res.status(200).json(agenda);
             return;
         } catch (error) {

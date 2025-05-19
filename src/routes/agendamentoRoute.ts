@@ -12,6 +12,7 @@ router.post("/diaria", authMiddleware, agendaController.registrarAgendaDiaria.bi
 router.get("/mensal", authMiddleware, agendaController.getAgendaMensal.bind(agendaController));
 router.get("/semanal", authMiddleware, agendaController.getAgendaSemanal.bind(agendaController));
 router.get("/diaria", authMiddleware, agendaController.getAgendaDiaria.bind(agendaController));
+router.get("/totem", agendaController.getAgendaDiariaTotem.bind(agendaController));
 
 router.put("/diaria/:scheduleId", authMiddleware, agendaController.editarAgendaMensal.bind(agendaController));
 router.post("/procedimento", authMiddleware, agendaController.acrescentarProcedimento.bind(agendaController));

@@ -1,4 +1,5 @@
 import prisma from "../database";
+import { io } from "../server";
 
 class AgendaService {
 
@@ -105,10 +106,13 @@ class AgendaService {
             where: { date: date }
         });
 
+        let response = null;
+
         if (existingShcedule) {
             await prisma.scheduleProcedimento.deleteMany({ where: { dailyScheduleId: existingShcedule.id } });
 
-            return await prisma.dailySchedule.update({
+
+            response = await prisma.dailySchedule.update({
                 where: { date: date },
                 data: {
                     procedimentos: {
@@ -121,7 +125,7 @@ class AgendaService {
                 }
             })
         } else {
-            return await prisma.dailySchedule.create({
+            response = await prisma.dailySchedule.create({
                 data: {
                     date,
                     procedimentos: {
@@ -134,6 +138,8 @@ class AgendaService {
                 },
             });
         }
+        io.emit('agenda-atualizada', date.toISOString());
+        return response;
     }
 
     async getAgendaMensal(month: number, year: number) {
@@ -234,12 +240,16 @@ class AgendaService {
     }
 
     async removerProcedimento(scheduleId: string, procedimentoId: string) {
-        return await prisma.scheduleProcedimento.deleteMany({
+        const response = await prisma.scheduleProcedimento.deleteMany({
             where: {
                 dailyScheduleId: scheduleId,
                 procedimentoId,
             },
         });
+
+        io.emit('agenda-atualizada', new Date().toISOString());
+
+        return response;
     }
 }
 
