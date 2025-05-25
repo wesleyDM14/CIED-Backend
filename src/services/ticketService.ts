@@ -46,8 +46,11 @@ class TicketService {
     }
 
     async generateTicket(procedimentoId: string, type: TicketType): Promise<string> {
-        const today = new Date();
-        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        // Use Luxon for timezone-aware start of day, consistent with other parts of your service
+        const startOfDay = DateTime.now()
+            .setZone('America/Sao_Paulo')
+            .startOf('day')
+            .toJSDate();
 
         const procedimento = await prisma.procedimento.findUnique({
             where: { id: procedimentoId },
@@ -57,27 +60,70 @@ class TicketService {
             throw new Error('Procedimento não encontrado.');
         }
 
-        const prefixType = this.getTypePrefix(type); // Ex: N, P, AG
-        const procPrefix = this.generateProcedimentoPrefix(procedimento.description); // Ex: FO, EX
+        const typePrefix = this.getTypePrefix(type); // Ex: N, P, AG
 
-        const prefix = `${procPrefix}-${prefixType}`; // Ex: FO-N, FO-P
+        const baseProcPrefix = this.generateProcedimentoPrefix(procedimento.description);
+        let currentProcPrefix = baseProcPrefix;
+        let attempt = 0;
+        const MAX_ATTEMPTS = 10; // Safeguard against infinite loops
+
+        while (attempt < MAX_ATTEMPTS) {
+            if (attempt > 0) {
+                // If baseProcPrefix was "RA", attempts will be "RA1", "RA2", etc.
+                currentProcPrefix = `${baseProcPrefix}${attempt}`;
+            }
+
+            // Check if this currentProcPrefix is already used by a DIFFERENT procedure today
+            const conflictingTicket = await prisma.ticket.findFirst({
+                where: {
+                    AND: [
+                        { procedimentoId: { not: procedimentoId } }, // Must be a different procedure
+                        { createdAt: { gte: startOfDay } },          // Created today
+                        { code: { startsWith: `${currentProcPrefix}-` } } // Code starts with this proc prefix + hyphen
+                    ]
+                },
+            });
+
+            if (!conflictingTicket) {
+                break; // Found a unique procPrefix for a new procedure for the day
+            }
+
+            attempt++;
+        }
+
+        if (attempt === MAX_ATTEMPTS) {
+            throw new Error(`Não foi possível gerar um prefixo de procedimento único para "${procedimento.description}" após ${MAX_ATTEMPTS} tentativas.`);
+        }
+
+        // currentProcPrefix is now unique for the day for this procedure, 
+        // or it's the original if no conflict, or an altered one (e.g., "RA1")
+        const finalTicketPrefix = `${currentProcPrefix}-${typePrefix}`; // Ex: FO-N, RA1-P
 
         const lastTicket = await prisma.ticket.findFirst({
             where: {
-                procedimentoId,
-                type,
+                procedimentoId, // Sequence is for this specific procedure
+                type,           // And this specific type
+                code: { startsWith: `${finalTicketPrefix}` }, // Matching the exact prefix we just determined
                 createdAt: { gte: startOfDay }
             },
             orderBy: { createdAt: 'desc' }
         });
 
-        const sequence = lastTicket
-            ? parseInt(lastTicket.code.split('-')[1]?.slice(1)) + 1
-            : 1;
+        let sequence = 1;
+        if (lastTicket) {
+            // Extract sequence number from code like "RA-N01" or "RA1-N01"
+            // finalTicketPrefix is "RA-N" or "RA1-N"
+            const sequenceStr = lastTicket.code.substring(finalTicketPrefix.length);
+            if (sequenceStr && !isNaN(parseInt(sequenceStr))) {
+                sequence = parseInt(sequenceStr) + 1;
+            }
+            // If parsing failed (unlikely with padStart), sequence remains 1 as a fallback,
+            // or you could add more robust error handling/logging here.
+        }
 
-        const code = `${prefix}${sequence.toString().padStart(2, '0')}`; // Ex: FO-N01
+        const generatedCode = `${finalTicketPrefix}${sequence.toString().padStart(2, '0')}`; // Ex: FO-N01, RA1-P01
 
-        return code;
+        return generatedCode;
     }
 
     async createTicket(procedimentoId: string, type: TicketType) {
