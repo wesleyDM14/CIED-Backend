@@ -46,7 +46,6 @@ class TicketService {
     }
 
     async generateTicket(procedimentoId: string, type: TicketType): Promise<string> {
-        // Use Luxon for timezone-aware start of day, consistent with other parts of your service
         const startOfDay = DateTime.now()
             .setZone('America/Sao_Paulo')
             .startOf('day')
@@ -60,34 +59,42 @@ class TicketService {
             throw new Error('Procedimento não encontrado.');
         }
 
-        const typePrefix = this.getTypePrefix(type); // Ex: N, P, AG
-
+        const typePrefix = this.getTypePrefix(type);
         const baseProcPrefix = this.generateProcedimentoPrefix(procedimento.description);
-        let currentProcPrefix = baseProcPrefix;
-        let attempt = 0;
-        const MAX_ATTEMPTS = 10; // Safeguard against infinite loops
+
+        let currentProcPrefix = "";
+        let attempt = 0; // Controla a tentativa geral de geração de prefixo
+        const MAX_ATTEMPTS = 10; // Limite de tentativas (base + 3 letras + 6 números)
+
+        // Sufixos de letras para tentar antes dos números
+        const letterSuffixes = ['X', 'Y', 'Z'];
 
         while (attempt < MAX_ATTEMPTS) {
-            if (attempt > 0) {
-                // If baseProcPrefix was "RA", attempts will be "RA1", "RA2", etc.
-                currentProcPrefix = `${baseProcPrefix}${attempt}`;
+            if (attempt === 0) {
+                currentProcPrefix = baseProcPrefix;
+            } else if (attempt <= letterSuffixes.length) {
+                // Tenta sufixos de letras: attempt 1 -> base + X, attempt 2 -> base + Y, ...
+                currentProcPrefix = `${baseProcPrefix}${letterSuffixes[attempt - 1]}`;
+            } else {
+                // Tenta sufixos numéricos: attempt (letterSuffixes.length + 1) -> base + 1, ...
+                // Ex: Se letterSuffixes tem 3 letras, attempt 4 usará o número 1 (4 - 3 = 1)
+                const numericSuffix = attempt - letterSuffixes.length;
+                currentProcPrefix = `${baseProcPrefix}${numericSuffix}`;
             }
 
-            // Check if this currentProcPrefix is already used by a DIFFERENT procedure today
             const conflictingTicket = await prisma.ticket.findFirst({
                 where: {
                     AND: [
-                        { procedimentoId: { not: procedimentoId } }, // Must be a different procedure
-                        { createdAt: { gte: startOfDay } },          // Created today
-                        { code: { startsWith: `${currentProcPrefix}-` } } // Code starts with this proc prefix + hyphen
+                        { procedimentoId: { not: procedimentoId } },
+                        { createdAt: { gte: startOfDay } },
+                        { code: { startsWith: `${currentProcPrefix}-` } }
                     ]
                 },
             });
 
             if (!conflictingTicket) {
-                break; // Found a unique procPrefix for a new procedure for the day
+                break;
             }
-
             attempt++;
         }
 
@@ -95,15 +102,13 @@ class TicketService {
             throw new Error(`Não foi possível gerar um prefixo de procedimento único para "${procedimento.description}" após ${MAX_ATTEMPTS} tentativas.`);
         }
 
-        // currentProcPrefix is now unique for the day for this procedure, 
-        // or it's the original if no conflict, or an altered one (e.g., "RA1")
-        const finalTicketPrefix = `${currentProcPrefix}-${typePrefix}`; // Ex: FO-N, RA1-P
+        const finalTicketPrefix = `${currentProcPrefix}-${typePrefix}`;
 
         const lastTicket = await prisma.ticket.findFirst({
             where: {
-                procedimentoId, // Sequence is for this specific procedure
-                type,           // And this specific type
-                code: { startsWith: `${finalTicketPrefix}` }, // Matching the exact prefix we just determined
+                procedimentoId,
+                type,
+                code: { startsWith: `${finalTicketPrefix}` },
                 createdAt: { gte: startOfDay }
             },
             orderBy: { createdAt: 'desc' }
@@ -111,18 +116,13 @@ class TicketService {
 
         let sequence = 1;
         if (lastTicket) {
-            // Extract sequence number from code like "RA-N01" or "RA1-N01"
-            // finalTicketPrefix is "RA-N" or "RA1-N"
             const sequenceStr = lastTicket.code.substring(finalTicketPrefix.length);
             if (sequenceStr && !isNaN(parseInt(sequenceStr))) {
                 sequence = parseInt(sequenceStr) + 1;
             }
-            // If parsing failed (unlikely with padStart), sequence remains 1 as a fallback,
-            // or you could add more robust error handling/logging here.
         }
 
-        const generatedCode = `${finalTicketPrefix}${sequence.toString().padStart(2, '0')}`; // Ex: FO-N01, RA1-P01
-
+        const generatedCode = `${finalTicketPrefix}${sequence.toString().padStart(2, '0')}`;
         return generatedCode;
     }
 
