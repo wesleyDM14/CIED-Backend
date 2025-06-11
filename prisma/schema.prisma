@@ -79,8 +79,8 @@ model Ticket {
   serviceCounter String?
   scheduleAt     DateTime?
 
-  procedimentoId String
-  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
+  procedimentoId String?
+  procedimento   Procedimento? @relation(fields: [procedimentoId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   calledAt  DateTime?
@@ -129,8 +129,8 @@ model Atendimento {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
 
-  procedimentoId String
-  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
+  procedimentoId String?
+  procedimento   Procedimento? @relation(fields: [procedimentoId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -153,7 +153,7 @@ model ScheduleProcedimento {
   dailySchedule   DailySchedule @relation(fields: [dailyScheduleId], references: [id])
 
   procedimentoId String
-  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id])
+  procedimento   Procedimento @relation(fields: [procedimentoId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
