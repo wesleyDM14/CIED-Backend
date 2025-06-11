@@ -46,8 +46,10 @@ class TicketService {
     }
 
     async generateTicket(procedimentoId: string, type: TicketType): Promise<string> {
-        const today = new Date();
-        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        const startOfDay = DateTime.now()
+            .setZone('America/Sao_Paulo')
+            .startOf('day')
+            .toJSDate();
 
         const procedimento = await prisma.procedimento.findUnique({
             where: { id: procedimentoId },
@@ -57,27 +59,71 @@ class TicketService {
             throw new Error('Procedimento não encontrado.');
         }
 
-        const prefixType = this.getTypePrefix(type); // Ex: N, P, AG
-        const procPrefix = this.generateProcedimentoPrefix(procedimento.description); // Ex: FO, EX
+        const typePrefix = this.getTypePrefix(type);
+        const baseProcPrefix = this.generateProcedimentoPrefix(procedimento.description);
 
-        const prefix = `${procPrefix}-${prefixType}`; // Ex: FO-N, FO-P
+        let currentProcPrefix = "";
+        let attempt = 0; // Controla a tentativa geral de geração de prefixo
+        const MAX_ATTEMPTS = 10; // Limite de tentativas (base + 3 letras + 6 números)
+
+        // Sufixos de letras para tentar antes dos números
+        const letterSuffixes = ['X', 'Y', 'Z'];
+
+        while (attempt < MAX_ATTEMPTS) {
+            if (attempt === 0) {
+                currentProcPrefix = baseProcPrefix;
+            } else if (attempt <= letterSuffixes.length) {
+                // Tenta sufixos de letras: attempt 1 -> base + X, attempt 2 -> base + Y, ...
+                currentProcPrefix = `${baseProcPrefix}${letterSuffixes[attempt - 1]}`;
+            } else {
+                // Tenta sufixos numéricos: attempt (letterSuffixes.length + 1) -> base + 1, ...
+                // Ex: Se letterSuffixes tem 3 letras, attempt 4 usará o número 1 (4 - 3 = 1)
+                const numericSuffix = attempt - letterSuffixes.length;
+                currentProcPrefix = `${baseProcPrefix}${numericSuffix}`;
+            }
+
+            const conflictingTicket = await prisma.ticket.findFirst({
+                where: {
+                    AND: [
+                        { procedimentoId: { not: procedimentoId } },
+                        { createdAt: { gte: startOfDay } },
+                        { code: { startsWith: `${currentProcPrefix}-` } }
+                    ]
+                },
+            });
+
+            if (!conflictingTicket) {
+                break;
+            }
+            attempt++;
+        }
+
+        if (attempt === MAX_ATTEMPTS) {
+            throw new Error(`Não foi possível gerar um prefixo de procedimento único para "${procedimento.description}" após ${MAX_ATTEMPTS} tentativas.`);
+        }
+
+        const finalTicketPrefix = `${currentProcPrefix}-${typePrefix}`;
 
         const lastTicket = await prisma.ticket.findFirst({
             where: {
                 procedimentoId,
                 type,
+                code: { startsWith: `${finalTicketPrefix}` },
                 createdAt: { gte: startOfDay }
             },
             orderBy: { createdAt: 'desc' }
         });
 
-        const sequence = lastTicket
-            ? parseInt(lastTicket.code.split('-')[1]?.slice(1)) + 1
-            : 1;
+        let sequence = 1;
+        if (lastTicket) {
+            const sequenceStr = lastTicket.code.substring(finalTicketPrefix.length);
+            if (sequenceStr && !isNaN(parseInt(sequenceStr))) {
+                sequence = parseInt(sequenceStr) + 1;
+            }
+        }
 
-        const code = `${prefix}${sequence.toString().padStart(2, '0')}`; // Ex: FO-N01
-
-        return code;
+        const generatedCode = `${finalTicketPrefix}${sequence.toString().padStart(2, '0')}`;
+        return generatedCode;
     }
 
     async createTicket(procedimentoId: string, type: TicketType) {
