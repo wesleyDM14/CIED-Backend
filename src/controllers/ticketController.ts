@@ -4,6 +4,20 @@ import { TicketType } from "@prisma/client";
 
 const ticketService = new TicketService();
 
+// Função auxiliar para traduzir o corredor
+const traduzirCorredor = (corredorNumerico: string): string | null => {
+    switch (corredorNumerico) {
+        case "1":
+            return "CORREDOR_1";
+        case "2":
+            return "CORREDOR_2";
+        // Adicione mais casos se tiver mais corredores.
+        default:
+            return null; // Retorna nulo se o valor for inválido
+    }
+};
+
+
 class TicketController {
 
     async createTicket(req: Request, res: Response, next: NextFunction) {
@@ -82,7 +96,14 @@ class TicketController {
                 res.status(400).json({ error: 'Corredor é obrigatório' });
                 return;
             }
-            const ticket = await ticketService.callNextTicket(procedimentoId, corredor);
+
+            const corredorEnum = traduzirCorredor(corredor);
+            if (!corredorEnum) {
+                res.status(400).json({ error: `Valor de corredor inválido: '${corredor}'.` });
+                return;
+            }
+
+            const ticket = await ticketService.callNextTicket(procedimentoId, corredorEnum);
             res.status(200).json(ticket);
         } catch (error) {
             next(error);
@@ -96,7 +117,14 @@ class TicketController {
                 res.status(400).json({ error: 'Número da senha e corredor são obrigatórios' });
                 return;
             }
-            const ticket = await ticketService.callSpecificTicket(number, corredor);
+
+            const corredorEnum = traduzirCorredor(corredor);
+            if (!corredorEnum) {
+                res.status(400).json({ error: `Valor de corredor inválido: '${corredor}'.` });
+                return;
+            }
+
+            const ticket = await ticketService.callSpecificTicket(number, corredorEnum);
             res.status(200).json(ticket);
         } catch (error) {
             next(error);
@@ -165,7 +193,7 @@ class TicketController {
                 return;
             }
             await ticketService.finalizeTicket(ticketId);
-            res.status(200).json({ message: 'Ticket finalizado com sucesso.' }); // Mensagem ajustada
+            res.status(200).json({ message: 'Ticket finalizado com sucesso.' });
         } catch (error) {
             next(error);
         }
