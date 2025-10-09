@@ -17,6 +17,7 @@ datasource db {
 enum TicketType {
   NORMAL
   PREFERENCIAL
+  IDOSO_80_MAIS
   AGENDAMENTO
 }
 
@@ -77,6 +78,7 @@ model Ticket {
   type           TicketType
   status         TicketStatus @default(WAITING)
   serviceCounter String?
+  corredor       Corredor?
   scheduleAt     DateTime?
 
   procedimentoId String?
@@ -157,4 +159,9 @@ model ScheduleProcedimento {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum Corredor {
+  CORREDOR_1
+  CORREDOR_2
 }

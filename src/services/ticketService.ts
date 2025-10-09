@@ -1,4 +1,4 @@
-import { TicketStatus, TicketType } from "@prisma/client";
+import { TicketStatus, TicketType, Corredor } from "@prisma/client";
 import prisma from "../database";
 import { io } from "../server";
 import { addDays, isWithinInterval, startOfWeek } from 'date-fns';
@@ -11,6 +11,7 @@ class TicketService {
         return {
             NORMAL: 'N',
             PREFERENCIAL: 'P',
+            IDOSO_80_MAIS: 'ID',
             AGENDAMENTO: 'AG'
         }[type];
     }
@@ -76,8 +77,6 @@ class TicketService {
                 // Tenta sufixos de letras: attempt 1 -> base + X, attempt 2 -> base + Y, ...
                 currentProcPrefix = `${baseProcPrefix}${letterSuffixes[attempt - 1]}`;
             } else {
-                // Tenta sufixos numéricos: attempt (letterSuffixes.length + 1) -> base + 1, ...
-                // Ex: Se letterSuffixes tem 3 letras, attempt 4 usará o número 1 (4 - 3 = 1)
                 const numericSuffix = attempt - letterSuffixes.length;
                 currentProcPrefix = `${baseProcPrefix}${numericSuffix}`;
             }
@@ -180,13 +179,11 @@ class TicketService {
     }
 
     async getWaitingTickets(ticketType: TicketType) {
-        // 1. Cria o início do dia no fuso do Brasil
         const todayStartBR = DateTime.now()
-            .setZone('America/Sao_Paulo') // Define o fuso correto
-            .startOf('day') // Meia-noite no horário brasileiro
-            .toJSDate(); // Converte para Date do JS
+            .setZone('America/Sao_Paulo')
+            .startOf('day')
+            .toJSDate();
 
-        // 2. Consulta usando o horário ajustado
         const tickets = await prisma.ticket.findMany({
             where: {
                 type: ticketType,
@@ -218,7 +215,7 @@ class TicketService {
         return lastTicket;
     }
 
-    async callNextTicket(serviceCounter: string, procedimentoId: string) {
+    async callNextTicket(corredor: string, procedimentoId: string) {
         const preferentialTickets = (await this.getWaitingTickets(TicketType.PREFERENCIAL))
             .filter(ticket => ticket.status !== TicketStatus.CALLED && ticket.procedimentoId === procedimentoId);
 
@@ -257,7 +254,7 @@ class TicketService {
             where: { id: ticketToCall.id },
             data: {
                 status: TicketStatus.CALLED,
-                serviceCounter: serviceCounter,
+                corredor: corredor as Corredor,
                 calledAt: new Date()
             }
         });
@@ -271,7 +268,7 @@ class TicketService {
         return updatedTicket;
     }
 
-    async callSpecificTicket(code: string, serviceCounter: string) {
+    async callSpecificTicket(code: string, corredor: string) {
         const ticket = await prisma.ticket.findFirst({ where: { code } });
 
         if (!ticket) {
@@ -282,7 +279,7 @@ class TicketService {
             where: { id: ticket.id },
             data: {
                 status: TicketStatus.CALLED,
-                serviceCounter: serviceCounter,
+                corredor: corredor as Corredor,
                 calledAt: new Date()
             },
             include: {
@@ -351,7 +348,6 @@ class TicketService {
     }
 
     async getDashboardSumary() {
-
         const allTickets = await prisma.ticket.findMany({
             select: {
                 type: true,
@@ -363,40 +359,32 @@ class TicketService {
         const today = new Date();
         const firstDayOfWeek = new Date(today);
         firstDayOfWeek.setDate(today.getDate() - today.getDay());
+        firstDayOfWeek.setHours(0, 0, 0, 0);
 
-        const weeklyTickets = allTickets.filter(ticket =>
-            new Date(ticket.createdAt) >= firstDayOfWeek
-        );
+        const weeklyTickets = allTickets.filter(ticket => new Date(ticket.createdAt) >= firstDayOfWeek);
 
-        const dailyCounts: Record<string, number> = {
-            "dom": 0, "seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "sáb": 0
-        };
-
+        const dailyCounts: Record<string, number> = { "dom": 0, "seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "sáb": 0 };
         weeklyTickets.forEach((ticket) => {
             const day = new Date(ticket.createdAt).toLocaleString("pt-BR", { weekday: "short" }).replace(".", "");
             if (dailyCounts[day] !== undefined) dailyCounts[day]++;
         });
 
-        // Cálculo para pizza e média (GERAL)
+        // <-- MUDANÇA AQUI: Adicionado contador para 80+
         let normalCount = 0;
         let preferencialCount = 0;
+        let idoso80MaisCount = 0;
 
         allTickets.forEach((ticket) => {
             if (ticket.type === "NORMAL") normalCount++;
             if (ticket.type === "PREFERENCIAL") preferencialCount++;
+            if (ticket.type === "IDOSO_80_MAIS") idoso80MaisCount++; // <-- MUDANÇA AQUI
         });
 
-        // Cálculo da média geral
         const totalDays = allTickets.length > 0
-            ? Math.ceil(
-                (new Date().getTime() - Math.min(...allTickets.map(t => t.createdAt.getTime()))) /
-                (1000 * 3600 * 24)
-            )
+            ? Math.ceil((new Date().getTime() - Math.min(...allTickets.map(t => t.createdAt.getTime()))) / (1000 * 3600 * 24))
             : 0;
 
-        const average = totalDays > 0 ?
-            (allTickets.length / totalDays).toFixed(1)
-            : 0;
+        const average = totalDays > 0 ? (allTickets.length / totalDays).toFixed(1) : "0.0";
 
         const statusCounts = {
             total: allTickets.length,
@@ -407,9 +395,11 @@ class TicketService {
 
         return {
             dailyData: Object.keys(dailyCounts).map(day => ({ day, atendimentos: dailyCounts[day] })),
+            // <-- MUDANÇA AQUI: Adicionado 80+ ao retorno
             attendanceBreakdown: [
                 { type: "Normal", count: normalCount },
-                { type: "Preferencial", count: preferencialCount }
+                { type: "Preferencial", count: preferencialCount },
+                { type: "80+", count: idoso80MaisCount }
             ],
             averageAttendances: average,
             statusDistribution: [
@@ -422,21 +412,16 @@ class TicketService {
     }
 
     async getQueue() {
-
         const todayStartBR = DateTime.now()
-            .setZone('America/Sao_Paulo') // Define o fuso correto
-            .startOf('day') // Meia-noite no horário brasileiro
+            .setZone('America/Sao_Paulo')
+            .startOf('day')
             .toJSDate();
 
         const daily = await prisma.dailySchedule.findFirst({
-            where: {
-                date: todayStartBR
-            },
+            where: { date: todayStartBR },
             include: {
                 procedimentos: {
-                    include: {
-                        procedimento: true
-                    }
+                    include: { procedimento: true }
                 }
             }
         });
@@ -444,10 +429,8 @@ class TicketService {
         if (!daily) return [];
 
         const filas = [];
-
         for (const sp of daily.procedimentos) {
             const procedimento = sp.procedimento;
-
             const tickets = await prisma.ticket.findMany({
                 where: {
                     procedimentoId: procedimento.id,
@@ -457,18 +440,20 @@ class TicketService {
                 orderBy: { createdAt: 'asc' }
             });
 
+            // <-- MUDANÇA AQUI: Adicionado filtro para 80+
             const normal = tickets.filter(t => t.type === TicketType.NORMAL);
             const preferencial = tickets.filter(t => t.type === TicketType.PREFERENCIAL);
+            const idoso80Mais = tickets.filter(t => t.type === TicketType.IDOSO_80_MAIS);
 
             filas.push({
                 procedimentoId: procedimento.id,
                 nome: procedimento.description,
                 profissional: procedimento.nomeProfissional,
                 normal,
-                preferencial
+                preferencial,
+                idoso80Mais // <-- MUDANÇA AQUI: Adicionado 80+ ao retorno
             });
         }
-
         return filas;
     }
 

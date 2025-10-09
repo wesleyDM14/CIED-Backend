@@ -45,7 +45,7 @@ class AtendimentoService {
                 metodoPagamento,
                 observacoes,
                 data,
-                procedimentoId: existingTicket.procedimento.id,
+                procedimentoId: existingTicket.procedimento!.id,
                 ...camposMedicos
             }
         });
