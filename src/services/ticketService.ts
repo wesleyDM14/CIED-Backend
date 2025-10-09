@@ -268,8 +268,10 @@ class TicketService {
         return updatedTicket;
     }
 
-    async callSpecificTicket(code: string, corredor: string) {
-        const ticket = await prisma.ticket.findFirst({ where: { code } });
+    // Exemplo em callSpecificTicket (faça o mesmo em callNextTicket)
+
+    async callSpecificTicket(number: string, corredorEnum: string) {
+        const ticket = await prisma.ticket.findFirst({ where: { code: number } });
 
         if (!ticket) {
             throw new Error('Ticket não encontrado no banco de dados.');
@@ -278,18 +280,22 @@ class TicketService {
         const updatedTicket = await prisma.ticket.update({
             where: { id: ticket.id },
             data: {
-                status: TicketStatus.CALLED,
-                corredor: corredor as Corredor,
+                status: "CALLED",
+                corredor: corredorEnum as Corredor,
                 calledAt: new Date()
             },
+            // VVV ADICIONE ESTA LINHA VVV
             include: {
                 procedimento: true
             }
         });
 
+        // VVV ATUALIZE O EMIT PARA ENVIAR MAIS DADOS VVV
         io.emit("ticket:called", {
             number: updatedTicket.code,
-            serviceCounter: updatedTicket.serviceCounter
+            corredor: updatedTicket.corredor,
+            type: updatedTicket.type,
+            procedimento: updatedTicket.procedimento?.description
         });
 
         return updatedTicket;
