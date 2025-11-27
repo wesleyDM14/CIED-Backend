@@ -17,11 +17,19 @@ class TicketService {
     }
 
     private generateProcedimentoPrefix(name: string): string {
+        const lowerName = name.toLowerCase();
+
+        // Exceção para colisão de "EN"
+        if (lowerName.startsWith('endocrinologista')) {
+            return 'ED'; // Endocrinologista
+        }
+        // "Endoscopia" vai continuar como "EN" pela lógica abaixo
+
         const words = name.trim().split(/\s+/);
         if (words.length === 1) {
-            return words[0].substring(0, 2).toUpperCase(); // Ex: "RaioX" => "RA"
+            return words[0].substring(0, 2).toUpperCase(); // Mantém 2 dígitos
         }
-        return words.map(w => w[0].toUpperCase()).join('').substring(0, 3); // Ex: "Exame Sangue" => "ES"
+        return words.map(w => w[0].toUpperCase()).join('').substring(0, 3);
     }
 
     private async isProcedimentoDisponivelNoMes(procedimentoId: string, mes: number, ano: number) {
@@ -271,12 +279,31 @@ class TicketService {
     // Exemplo em callSpecificTicket (faça o mesmo em callNextTicket)
 
     async callSpecificTicket(number: string, corredorEnum: string) {
-        const ticket = await prisma.ticket.findFirst({ where: { code: number } });
+        // 1. Define o "Marco Zero" de hoje (00:00:00)
+        const startOfDay = DateTime.now()
+            .setZone('America/Sao_Paulo')
+            .startOf('day')
+            .toJSDate();
+
+        // 2. Busca o ticket pelo Código E que tenha sido criado HOJE
+        const ticket = await prisma.ticket.findFirst({
+            where: {
+                code: number,
+                createdAt: {
+                    gte: startOfDay // <--- AQUI ESTÁ A CORREÇÃO MÁGICA
+                }
+            },
+            // Opcional: Se quiser garantir que pegue o mais recente de hoje (caso haja duplicidade por bug)
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
 
         if (!ticket) {
-            throw new Error('Ticket não encontrado no banco de dados.');
+            throw new Error('Ticket não encontrado para a data de hoje.');
         }
 
+        // Daqui pra baixo segue o fluxo normal...
         const updatedTicket = await prisma.ticket.update({
             where: { id: ticket.id },
             data: {
@@ -284,13 +311,11 @@ class TicketService {
                 corredor: corredorEnum as Corredor,
                 calledAt: new Date()
             },
-            // VVV ADICIONE ESTA LINHA VVV
             include: {
                 procedimento: true
             }
         });
 
-        // VVV ATUALIZE O EMIT PARA ENVIAR MAIS DADOS VVV
         io.emit("ticket:called", {
             number: updatedTicket.code,
             corredor: updatedTicket.corredor,
